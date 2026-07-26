@@ -1,0 +1,377 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* =========================================================
+   LIGHT — violet-tinted neutrals so the brand feels native
+   rather than bolted onto a grey UI.
+   ========================================================= */
+:root {
+  --surface: #f4f2fa;
+  --panel: #ffffff;
+  --panel2: #faf9fd;
+  --edge: #e5e2f0;
+  --edge2: #efedf7;
+  --ink: #1a1533;
+  --mut: #6b6588;
+  --faint: #9c96b8;
+
+  --brand: #7c3aed;
+  --brand-deep: #6d28d9;
+  --brand-soft: #f0eafe;
+  --brand-ring: rgba(124, 58, 237, 0.32);
+
+  --gain: #0d9668;
+  --gain-soft: #e4f7ef;
+  --loss: #e0364b;
+  --loss-soft: #fdeaed;
+  --warn: #7c3aed;
+  --warn-soft: #f0eafe;
+
+  /* layered, brand-tinted elevation */
+  --shadow-sm: 0 1px 2px rgba(26, 21, 51, 0.05);
+  --shadow: 0 1px 2px rgba(26, 21, 51, 0.04), 0 10px 28px -14px rgba(76, 29, 149, 0.22);
+  --shadow-lg: 0 2px 4px rgba(26, 21, 51, 0.05), 0 20px 48px -18px rgba(76, 29, 149, 0.3);
+  --sheen: rgba(255, 255, 255, 0.9);
+}
+
+/* =========================================================
+   DARK — deep violet-black with rich electric purple accents
+   ========================================================= */
+.dark {
+  --surface: #0a0716;
+  --panel: #15112c;
+  --panel2: #100d23;
+  --edge: #282147;
+  --edge2: #1f1a3a;
+  --ink: #ece9f8;
+  --mut: #968fb8;
+  --faint: #645d87;
+
+  /* Refined, vivid electric purple — never pale or chalky */
+  --brand: #8b5cf6;
+  --brand-deep: #7c3aed;
+  --brand-soft: #28134d;
+  --brand-ring: rgba(139, 92, 246, 0.42);
+
+  --gain: #34d399;
+  --gain-soft: #0c2e24;
+  --loss: #fb6f7f;
+  --loss-soft: #331420;
+  /* Warn remapped to brand purple tint to replace orange strips */
+  --warn: #8b5cf6;
+  --warn-soft: #28134d;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 12px 32px -16px rgba(0, 0, 0, 0.8);
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.5), 0 24px 56px -20px rgba(0, 0, 0, 0.9);
+  --sheen: rgba(255, 255, 255, 0.06);
+}
+
+@theme inline {
+  --color-surface: var(--surface);
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel2);
+  --color-edge: var(--edge);
+  --color-edge2: var(--edge2);
+  --color-ink: var(--ink);
+  --color-mut: var(--mut);
+  --color-faint: var(--faint);
+  --color-brand: var(--brand);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-soft: var(--brand-soft);
+  --color-gain: var(--gain);
+  --color-gain-soft: var(--gain-soft);
+  --color-loss: var(--loss);
+  --color-loss-soft: var(--loss-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --font-display: "Space Grotesk", sans-serif;
+  --font-sans: "Manrope", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--surface);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* theme cross-fade — only paint properties, never layout */
+body,
+.themed {
+  transition:
+    background-color 0.35s ease,
+    border-color 0.35s ease,
+    color 0.35s ease;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.012em;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ---------- focus ---------- */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--brand-ring);
+}
+
+::selection {
+  background: var(--brand);
+  color: #fff;
+}
+
+/* ---------- scrollbars ---------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--edge) transparent;
+}
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--edge);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--faint);
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------- brand helpers ---------- */
+.brand-gradient {
+  background-image: linear-gradient(135deg, var(--brand) 0%, var(--brand-deep) 100%);
+}
+.brand-text {
+  background-image: linear-gradient(135deg, var(--brand) 0%, var(--brand-deep) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* hairline top highlight that makes cards read as physical surfaces */
+.sheen {
+  position: relative;
+}
+.sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--sheen), transparent);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* recharts: kill the default focus rectangle on bars/sectors */
+.recharts-wrapper :focus,
+.recharts-surface:focus,
+.recharts-sector:focus,
+.recharts-rectangle:focus {
+  outline: none;
+}
+.recharts-cartesian-axis-line,
+.recharts-cartesian-axis-tick-line {
+  stroke: transparent;
+}
+.recharts-bar-rectangle,
+.recharts-sector,
+.recharts-dot {
+  transition: opacity 0.18s ease;
+}
+.recharts-tooltip-wrapper {
+  outline: none !important;
+  z-index: 40;
+}
+
+/* range input, themed to brand */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--edge);
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 17px;
+  width: 17px;
+  border-radius: 50%;
+  background: var(--brand);
+  border: 3px solid var(--panel);
+  box-shadow: 0 1px 6px var(--brand-ring);
+  transition: transform 0.15s ease;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+input[type="range"]::-moz-range-thumb {
+  height: 15px;
+  width: 15px;
+  border-radius: 50%;
+  background: var(--brand);
+  border: 3px solid var(--panel);
+}
+
+/* native date/select controls follow the theme in dark mode */
+.dark input[type="date"] {
+  color-scheme: dark;
+}
+
+/* ---------- motion ---------- */
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.reveal {
+  opacity: 0;
+}
+.reveal.is-in {
+  animation: riseIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.toast-in {
+  animation: toastIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes drawerIn {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.drawer-in {
+  animation: drawerIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ---------- calendar motion ---------- */
+@keyframes calCellIn {
+  from {
+    opacity: 0;
+    transform: translateY(9px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+/* backwards fill only: cells start hidden during their stagger delay,
+   then return to natural styles so hover transforms still work after entry */
+.cal-cell {
+  animation: calCellIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes calLabelIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+    letter-spacing: 0.06em;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    letter-spacing: normal;
+  }
+}
+.cal-label {
+  animation: calLabelIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes todayRing {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1.5px var(--brand),
+      0 0 0 1.5px var(--brand-ring);
+  }
+  60% {
+    box-shadow:
+      0 0 0 1.5px var(--brand),
+      0 0 0 9px transparent;
+  }
+}
+.today-ring {
+  animation: todayRing 2.8s ease-out infinite;
+}
+
+@keyframes pulseDot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.82);
+  }
+}
+.pulse-dot {
+  animation: pulseDot 2.2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .reveal {
+    opacity: 1;
+  }
+}
