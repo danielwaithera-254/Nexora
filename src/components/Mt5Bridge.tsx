@@ -59,12 +59,15 @@ export default function Mt5Bridge({
     addLog(`Connecting to MT5 Web API at localhost:${apiPort}...`, "info");
 
     try {
+      const ac = new AbortController();
+      const to = setTimeout(() => ac.abort(), 5000);
       const res = await fetch(`http://localhost:${apiPort}/api/v1/auth`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ login: account, password }),
-        signal: AbortSignal.timeout(5000),
+        signal: ac.signal,
       });
+      clearTimeout(to);
       if (!res.ok) throw new Error(`Auth failed (${res.status})`);
       const authData = await res.json();
       const token = authData.token || authData.access_token || authData.auth_token || "";
@@ -74,10 +77,13 @@ export default function Mt5Bridge({
       setConnecting(false);
 
       addLog("Fetching trade history...", "info");
+      const ac2 = new AbortController();
+      const to2 = setTimeout(() => ac2.abort(), 15000);
       const dealsRes = await fetch(`http://localhost:${apiPort}/api/v1/trade/deals`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
-        signal: AbortSignal.timeout(10000),
+        signal: ac2.signal,
       });
+      clearTimeout(to2);
       if (!dealsRes.ok) throw new Error(`Failed to fetch deals (${dealsRes.status})`);
       const dealsData = await dealsRes.json();
 
@@ -96,14 +102,17 @@ export default function Mt5Bridge({
           const dateRaw = d.Time || d.CloseTime || d.OpenTime || "";
           const ts = dateRaw ? new Date(dateRaw).getTime() : Date.now() - i * 60000;
           const dDate = new Date(ts);
-          const profit = Math.round(parseFloat(d.Profit) || 0);
+          const profit = parseFloat(d.Profit) || 0;
+          const comm = parseFloat(d.Commission) || 0;
+          const swap = parseFloat(d.Swap) || 0;
+          const totalPnL = Math.round(profit + comm + swap);
           const typeRaw = (d.Type ?? "").toString().toLowerCase();
           const side: "Long" | "Short" =
-            typeRaw === "buy" || typeRaw === "0" || typeRaw === "limit buy" || typeRaw === "stop buy"
+            typeRaw === "buy" || typeRaw === "0" || typeRaw.includes("buy")
               ? "Long"
               : "Short";
           const volume = parseFloat(d.Volume || d.Size || "0") || 0.01;
-          const risk = Math.max(1, Math.abs(Math.round(profit * 0.6)));
+          const risk = Math.max(1, Math.abs(Math.round(totalPnL * 0.6)));
           return {
             id: `MT5-${d.Deal || d.Ticket || i}-${ts % 100000}`,
             date: `${dDate.getFullYear()}-${String(dDate.getMonth() + 1).padStart(2, "0")}-${String(dDate.getDate()).padStart(2, "0")}`,
@@ -117,8 +126,8 @@ export default function Mt5Bridge({
             entry: parseFloat(d.EntryPrice || d.OpenPrice || d.Price || "0") || 0,
             exit: parseFloat(d.ClosePrice || d.Price || "0") || 0,
             risk,
-            r: risk > 0 ? Math.round((profit / risk) * 100) / 100 : 0,
-            pnl: profit,
+            r: risk > 0 ? Math.round((totalPnL / risk) * 100) / 100 : 0,
+            pnl: totalPnL,
             planned: false,
           };
         });

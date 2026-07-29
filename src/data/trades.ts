@@ -196,7 +196,32 @@ export function tradesToCSV(trades: Trade[]): string {
 
 /* ---------- MetaTrader 5 CSV import ---------- */
 
-const MT5_HEADER_ALIASES: Record<string, string> = {
+/* ---------- proper CSV row parser (handles quoted fields) ---------- */
+
+function parseCSVLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQ) {
+      if (ch === '"') {
+        if (i + 1 < line.length && line[i + 1] === '"') { cur += '"'; i++; }
+        else inQ = false;
+      } else cur += ch;
+    } else {
+      if (ch === '"') inQ = true;
+      else if (ch === ",") { out.push(cur.trim()); cur = ""; }
+      else cur += ch;
+    }
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+/* ---------- MetaTrader 5 CSV import ---------- */
+
+const MT5_HEADER_MAP: Record<string, string> = {
   ticket: "ticket",
   "ticket #": "ticket",
   "deal #": "ticket",
@@ -217,34 +242,38 @@ const MT5_HEADER_ALIASES: Record<string, string> = {
   commission: "commission",
   swap: "swap",
   profit: "profit",
-  magic: "magic",
   comment: "comment",
 };
 
 const MT5_DATE_RE = /(\d{4})[./-](\d{1,2})[./-](\d{1,2})/;
 
 export function parseMT5CSV(text: string): Trade[] {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  const raw = text.replace(/^\uFEFF/, "").trim();
+  const lines = raw.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return [];
 
-  const head = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/^["']|["']$/g, ""));
-  const col = (alias: string) => {
-    const key = MT5_HEADER_ALIASES[head.find((h) => MT5_HEADER_ALIASES[h] === alias)];
-    return key ? head.indexOf(head.find((h) => MT5_HEADER_ALIASES[h] === alias)!) : -1;
-  };
+  const head = parseCSVLine(lines[0]).map((h) => h.toLowerCase());
 
-  const iTicket = col("ticket");
-  const iOpen = col("open_time");
-  const iType = col("type");
-  const iSize = col("size");
-  const iSym = col("symbol");
-  const iOpenP = col("open_price");
-  const iCloseP = col("close_price");
-  const iProfit = col("profit");
-  const iCommission = col("commission");
-  const iSwap = col("swap");
+  const idxMap: Record<string, number> = {};
+  for (let i = 0; i < head.length; i++) {
+    const mapped = MT5_HEADER_MAP[head[i]];
+    if (mapped && !(mapped in idxMap)) idxMap[mapped] = i;
+  }
+
+  const idx = (k: string) => idxMap[k] ?? -1;
+  const iOpen = idx("open_time");
+  const iType = idx("type");
+  const iSym = idx("symbol");
+  const iProfit = idx("profit");
 
   if (iOpen < 0 || iType < 0 || iSym < 0 || iProfit < 0) return [];
+
+  const iTicket = idx("ticket");
+  const iSize = idx("size");
+  const iOpenP = idx("open_price");
+  const iCloseP = idx("close_price");
+  const iCommission = idx("commission");
+  const iSwap = idx("swap");
 
   const parseDate = (raw: string): Date | null => {
     const m = raw.match(MT5_DATE_RE);
@@ -257,30 +286,30 @@ export function parseMT5CSV(text: string): Trade[] {
   let idc = 1;
 
   for (let i = 1; i < lines.length; i++) {
-    const c = lines[i].split(",").map((s) => s.trim().replace(/^["']|["']$/g, ""));
-    const openRaw = c[iOpen] || "";
-    const closeP = iCloseP >= 0 ? c[iCloseP] : "";
-    const profitRaw = c[iProfit] || "0";
+    const c = parseCSVLine(lines[i]);
+    if (c.length <= Math.max(iOpen, iType, iSym, iProfit)) continue;
 
+    const openRaw = c[iOpen] || "";
     const openDate = parseDate(openRaw);
     if (!openDate) continue;
 
-    // skip open positions (no close price or profit is not a number)
-    const profit = parseFloat(profitRaw);
+    const profit = parseFloat(c[iProfit]);
     if (isNaN(profit)) continue;
 
+    const commission = iCommission >= 0 ? parseFloat(c[iCommission]) || 0 : 0;
+    const swap = iSwap >= 0 ? parseFloat(c[iSwap]) || 0 : 0;
+    const totalPnL = Math.round(profit + commission + swap);
+    if (totalPnL === 0) continue; // skip breakeven / still open
+
     const typeRaw = (c[iType] || "").toLowerCase();
-    const side: Side = typeRaw === "buy" || typeRaw === "buy limit" || typeRaw === "buy stop" ? "Long" : "Short";
+    const side: Side = typeRaw === "buy" || typeRaw.includes("buy") ? "Long" : "Short";
 
     const qty = iSize >= 0 ? parseFloat(c[iSize]) || 0.01 : 0.01;
     const symbol = (c[iSym] || "").toUpperCase();
     const entry = iOpenP >= 0 ? parseFloat(c[iOpenP]) || 0 : 0;
-    const exit = closeP ? parseFloat(closeP) || 0 : 0;
-    const commission = iCommission >= 0 ? parseFloat(c[iCommission]) || 0 : 0;
-    const swap = iSwap >= 0 ? parseFloat(c[iSwap]) || 0 : 0;
-    const totalPnL = Math.round(profit);
+    const exit = iCloseP >= 0 ? parseFloat(c[iCloseP]) || 0 : 0;
 
-    const risk = Math.max(1, Math.abs(Math.round(totalPnL * 0.6))); // estimate risk ~60% of avg loss magnitude
+    const risk = Math.max(1, Math.abs(Math.round(totalPnL * 0.6)));
     const r = risk > 0 ? Math.round((totalPnL / risk) * 100) / 100 : 0;
 
     const ts = openDate.getTime();
