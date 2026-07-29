@@ -194,6 +194,119 @@ export function tradesToCSV(trades: Trade[]): string {
   return [head, ...rows].join("\n");
 }
 
+/* ---------- MetaTrader 5 CSV import ---------- */
+
+const MT5_HEADER_ALIASES: Record<string, string> = {
+  ticket: "ticket",
+  "ticket #": "ticket",
+  "deal #": "ticket",
+  "open time": "open_time",
+  time: "open_time",
+  type: "type",
+  size: "size",
+  volume: "size",
+  symbol: "symbol",
+  "open price": "open_price",
+  price: "open_price",
+  "s/l": "sl",
+  "stop loss": "sl",
+  "t/p": "tp",
+  "take profit": "tp",
+  "close time": "close_time",
+  "close price": "close_price",
+  commission: "commission",
+  swap: "swap",
+  profit: "profit",
+  magic: "magic",
+  comment: "comment",
+};
+
+const MT5_DATE_RE = /(\d{4})[./-](\d{1,2})[./-](\d{1,2})/;
+
+export function parseMT5CSV(text: string): Trade[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return [];
+
+  const head = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/^["']|["']$/g, ""));
+  const col = (alias: string) => {
+    const key = MT5_HEADER_ALIASES[head.find((h) => MT5_HEADER_ALIASES[h] === alias)];
+    return key ? head.indexOf(head.find((h) => MT5_HEADER_ALIASES[h] === alias)!) : -1;
+  };
+
+  const iTicket = col("ticket");
+  const iOpen = col("open_time");
+  const iType = col("type");
+  const iSize = col("size");
+  const iSym = col("symbol");
+  const iOpenP = col("open_price");
+  const iCloseP = col("close_price");
+  const iProfit = col("profit");
+  const iCommission = col("commission");
+  const iSwap = col("swap");
+
+  if (iOpen < 0 || iType < 0 || iSym < 0 || iProfit < 0) return [];
+
+  const parseDate = (raw: string): Date | null => {
+    const m = raw.match(MT5_DATE_RE);
+    if (!m) return null;
+    const d = new Date(`${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}T${raw.includes(":") ? raw.split(/\s+/)[1] || "00:00:00" : "00:00:00"}`);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const out: Trade[] = [];
+  let idc = 1;
+
+  for (let i = 1; i < lines.length; i++) {
+    const c = lines[i].split(",").map((s) => s.trim().replace(/^["']|["']$/g, ""));
+    const openRaw = c[iOpen] || "";
+    const closeP = iCloseP >= 0 ? c[iCloseP] : "";
+    const profitRaw = c[iProfit] || "0";
+
+    const openDate = parseDate(openRaw);
+    if (!openDate) continue;
+
+    // skip open positions (no close price or profit is not a number)
+    const profit = parseFloat(profitRaw);
+    if (isNaN(profit)) continue;
+
+    const typeRaw = (c[iType] || "").toLowerCase();
+    const side: Side = typeRaw === "buy" || typeRaw === "buy limit" || typeRaw === "buy stop" ? "Long" : "Short";
+
+    const qty = iSize >= 0 ? parseFloat(c[iSize]) || 0.01 : 0.01;
+    const symbol = (c[iSym] || "").toUpperCase();
+    const entry = iOpenP >= 0 ? parseFloat(c[iOpenP]) || 0 : 0;
+    const exit = closeP ? parseFloat(closeP) || 0 : 0;
+    const commission = iCommission >= 0 ? parseFloat(c[iCommission]) || 0 : 0;
+    const swap = iSwap >= 0 ? parseFloat(c[iSwap]) || 0 : 0;
+    const totalPnL = Math.round(profit);
+
+    const risk = Math.max(1, Math.abs(Math.round(totalPnL * 0.6))); // estimate risk ~60% of avg loss magnitude
+    const r = risk > 0 ? Math.round((totalPnL / risk) * 100) / 100 : 0;
+
+    const ts = openDate.getTime();
+    const dateStr = `${openDate.getFullYear()}-${String(openDate.getMonth() + 1).padStart(2, "0")}-${String(openDate.getDate()).padStart(2, "0")}`;
+
+    out.push({
+      id: `MT5-${iTicket >= 0 ? c[iTicket] : String(idc++).padStart(4, "0")}-${ts % 100000}`,
+      date: dateStr,
+      ts,
+      symbol,
+      side,
+      strategy: "Imported",
+      account: "MT5",
+      session: openDate.getHours() < 12 ? "New York" : openDate.getHours() < 18 ? "London" : "Asia",
+      qty: Math.max(0.01, qty),
+      entry,
+      exit,
+      risk,
+      r,
+      pnl: totalPnL,
+      planned: false,
+    });
+  }
+  return out;
+}
+
 export function sampleCSV(): string {
   return [
     "date,symbol,side,strategy,account,session,qty,entry,exit,risk,r,pnl,planned",

@@ -214,6 +214,11 @@ export default function App() {
                   "gain"
                 );
               }}
+              onImportTrades={(trades) => {
+                setTrades((prev) => [...prev, ...trades]);
+                const pnl = trades.reduce((s, t) => s + t.pnl, 0);
+                showToast(`Imported ${trades.length} MT5 trades (${pnl >= 0 ? "+" : ""}$${pnl.toLocaleString()})`, "gain");
+              }}
             />
           </Reveal>
         );

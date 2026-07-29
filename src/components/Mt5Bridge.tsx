@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { Cpu, Power, RefreshCw, Zap } from "lucide-react";
+import { Cpu, Power, RefreshCw, Zap, Upload, FileDown } from "lucide-react";
 import { Card, CardHead } from "./ui";
 import type { Trade } from "../data/trades";
-import { SYMBOLS, STRATEGIES } from "../data/trades";
+import { SYMBOLS, STRATEGIES, parseMT5CSV } from "../data/trades";
 import { cn } from "../utils/cn";
 
 interface LogLine {
@@ -13,8 +13,10 @@ interface LogLine {
 
 export default function Mt5Bridge({
   onNewTrade,
+  onImportTrades,
 }: {
   onNewTrade: (t: Trade) => void;
+  onImportTrades?: (trades: Trade[]) => void;
 }) {
   const [account, setAccount] = useState("50941822");
   const [server, setServer] = useState("ICMarkets-Demo");
@@ -25,8 +27,11 @@ export default function Mt5Bridge({
   const [logs, setLogs] = useState<LogLine[]>([
     { time: "09:30:00", msg: "Bridge client loaded. Ready to bind terminal.", type: "info" },
   ]);
+  const [importStats, setImportStats] = useState<{ count: number; totalPnL: number } | null>(null);
+  const [dragOver, setDragOver] = useState(false);
 
   const autoTimer = useRef<number | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const addLog = (msg: string, type: LogLine["type"] = "info") => {
     const time = new Date().toLocaleTimeString("en-US", { hour12: false });
@@ -53,7 +58,30 @@ export default function Mt5Bridge({
     }, 900);
   };
 
-  // Simulating taking a live trade
+  const handleMT5File = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result ?? "");
+      const parsed = parseMT5CSV(text);
+      if (parsed.length) {
+        setImportStats({
+          count: parsed.length,
+          totalPnL: parsed.reduce((s, t) => s + t.pnl, 0),
+        });
+        if (onImportTrades) {
+          onImportTrades(parsed);
+        } else {
+          parsed.forEach((t) => onNewTrade(t));
+        }
+        addLog(`Imported ${parsed.length} trades from MT5 report`, "success");
+        addLog(`Portfolio P&L: ${parsed.reduce((s, t) => s + t.pnl, 0) >= 0 ? "+" : ""}$${parsed.reduce((s, t) => s + t.pnl, 0)}`, "info");
+      } else {
+        addLog("No valid trades found. Check the file format.", "error");
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const triggerSimTrade = () => {
     if (!connected) return;
 
@@ -62,7 +90,6 @@ export default function Mt5Bridge({
     const side = Math.random() < 0.52 ? "Long" : "Short";
     const risk = 250;
 
-    // random win/loss with typical R ratio
     const win = Math.random() < 0.48;
     const r = win
       ? Math.round((0.5 + Math.random() * 2.2) * 100) / 100
@@ -123,7 +150,6 @@ export default function Mt5Bridge({
 
   return (
     <Card className="relative overflow-hidden">
-      {/* status indicator */}
       <span
         className={cn(
           "absolute right-3.5 top-3.5 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 transition-all duration-300",
@@ -145,7 +171,7 @@ export default function Mt5Bridge({
 
       <CardHead
         title="MT5 Broker Gateway"
-        info="Synchronize your journal live directly with MT5. Authenticates locally and syncs in real-time."
+        info="Import real trades from MT5 reports or use the live simulation bridge."
         icon={<Cpu size={14} />}
       />
 
@@ -229,6 +255,79 @@ export default function Mt5Bridge({
               </>
             )}
           </div>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 py-1">
+            <span className="h-px flex-1 bg-edge" />
+            <span className="text-[9px] font-extrabold uppercase tracking-widest text-faint">OR</span>
+            <span className="h-px flex-1 bg-edge" />
+          </div>
+
+          {/* MT5 CSV Import */}
+          <div>
+            <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-mut">
+              Import from MT5 Report
+            </span>
+            <p className="mt-0.5 text-[10px] leading-relaxed text-faint">
+              Export your trade history from MetaTrader 5: open{" "}
+              <span className="font-bold text-mut">Account History</span> tab →
+              right-click → <span className="font-bold text-mut">Save as Detailed Report</span> →
+              choose CSV format. Drag the file below.
+            </p>
+          </div>
+
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              const f = e.dataTransfer.files[0];
+              if (f) handleMT5File(f);
+            }}
+            onClick={() => fileRef.current?.click()}
+            className={cn(
+              "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-5 transition-all",
+              dragOver
+                ? "border-brand bg-brand/5"
+                : "border-edge bg-panel2 hover:border-brand/50 hover:bg-panel"
+            )}
+          >
+            <Upload size={20} className="text-faint" />
+            <span className="text-[11px] font-bold text-mut">
+              Drop MT5 CSV here or click to browse
+            </span>
+            <span className="text-[9px] text-faint">Accepts .csv files from MT5</span>
+          </div>
+
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleMT5File(f);
+              e.target.value = "";
+            }}
+          />
+
+          {importStats && (
+            <div className="rounded-xl border border-gain/20 bg-gain-soft/50 px-3.5 py-2">
+              <div className="flex items-center gap-2">
+                <FileDown size={13} className="text-gain" />
+                <span className="text-[11px] font-bold text-gain">
+                  {importStats.count} trades imported
+                </span>
+              </div>
+              <span className="text-[10px] text-mut">
+                Net P&L:{" "}
+                <span className={importStats.totalPnL >= 0 ? "text-gain font-bold" : "text-loss font-bold"}>
+                  {importStats.totalPnL >= 0 ? "+" : ""}${importStats.totalPnL.toLocaleString()}
+                </span>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Terminal logs output */}
@@ -246,7 +345,7 @@ export default function Mt5Bridge({
               </button>
             )}
           </div>
-          <div className="h-[96px] overflow-y-auto rounded-xl border border-edge bg-panel2 p-3 font-mono text-[10px] leading-relaxed select-none">
+          <div className="h-[152px] overflow-y-auto rounded-xl border border-edge bg-panel2 p-3 font-mono text-[10px] leading-relaxed select-none">
             {logs.map((l, i) => (
               <div key={i} className="flex gap-2">
                 <span className="text-faint">{l.time}</span>
