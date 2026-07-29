@@ -207,18 +207,13 @@ export default function App() {
         return (
           <Reveal>
             <Mt5Bridge
-              onNewTrade={(t) => {
-                setTrades((prev) => [...prev, t]);
-                showToast(
-                  `Captured MT5 trade fill: ${t.symbol} ${t.side} (${t.pnl >= 0 ? "+" : ""}${t.pnl})`,
-                  "gain"
-                );
-              }}
-              onImportTrades={(trades) => {
-                setTrades((prev) => [...prev, ...trades]);
+              onReplaceTrades={(trades) => {
+                setTrades(trades);
+                setFilters({ range: "ALL", strategy: "All", account: "All" });
                 const pnl = trades.reduce((s, t) => s + t.pnl, 0);
-                showToast(`Imported ${trades.length} MT5 trades (${pnl >= 0 ? "+" : ""}$${pnl.toLocaleString()})`, "gain");
+                showToast(`Loaded ${trades.length} MT5 trades — net P&L: ${pnl >= 0 ? "+" : ""}$${pnl.toLocaleString()}`, "gain");
               }}
+              onNavigate={() => handleNavigate("dashboard")}
             />
           </Reveal>
         );
