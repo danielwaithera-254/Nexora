@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { Cpu, Power, Upload, FileDown, AlertTriangle, ExternalLink } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Cpu, Power, Upload, FileDown, RefreshCw, AlertTriangle, Terminal } from "lucide-react";
 import { Card, CardHead } from "./ui";
 import type { Trade } from "../data/trades";
 import { parseMT5CSV } from "../data/trades";
@@ -11,6 +11,8 @@ interface LogLine {
   type: "info" | "success" | "warn" | "error";
 }
 
+const DEFAULT_PORT = 8765;
+
 export default function Mt5Bridge({
   onReplaceTrades,
   onNavigate,
@@ -21,9 +23,11 @@ export default function Mt5Bridge({
   const [account, setAccount] = useState("50941822");
   const [server, setServer] = useState("ICMarkets-Demo");
   const [password, setPassword] = useState("");
-  const [apiPort, setApiPort] = useState("8080");
+  const [apiPort, setApiPort] = useState(String(DEFAULT_PORT));
+  const [daysBack, setDaysBack] = useState("365");
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [accountInfo, setAccountInfo] = useState<{ balance?: number; equity?: number; currency?: string } | null>(null);
   const [logs, setLogs] = useState<LogLine[]>([
     { time: "09:30:00", msg: "Bridge client loaded. No connection.", type: "info" },
   ]);
@@ -31,6 +35,7 @@ export default function Mt5Bridge({
   const [dragOver, setDragOver] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const base = `http://localhost:${apiPort}`;
 
   const addLog = (msg: string, type: LogLine["type"] = "info") => {
     const time = new Date().toLocaleTimeString("en-US", { hour12: false });
@@ -45,108 +50,113 @@ export default function Mt5Bridge({
     if (onNavigate) onNavigate();
   };
 
+  const fetchTrades = async () => {
+    addLog("Fetching closed trade history...", "info");
+    const res = await fetch(`${base}/api/trades?days_back=${parseInt(daysBack) || 365}`, {
+      signal: AbortSignal.timeout(20000),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`);
+    return (data.trades || []) as any[];
+  };
+
+  const mapDeals = (deals: any[]): Trade[] =>
+    deals
+      .filter((d) => d.Profit !== undefined && d.Profit !== null)
+      .map((d: any, i: number) => {
+        const dateRaw = d.Time || d.OpenTime || d.CloseTime || "";
+        const ts = dateRaw ? new Date(dateRaw).getTime() : Date.now() - i * 60000;
+        const dDate = new Date(ts);
+        const profit = parseFloat(d.Profit) || 0;
+        const comm = parseFloat(d.Commission) || 0;
+        const swap = parseFloat(d.Swap) || 0;
+        const totalPnL = Math.round(profit + comm + swap);
+
+        const sideRaw = (d.Side ?? d.Type ?? "").toString().toLowerCase();
+        let side: "Long" | "Short";
+        if (sideRaw === "long") side = "Long";
+        else if (sideRaw === "short") side = "Short";
+        else side = sideRaw === "buy" || sideRaw === "0" || sideRaw.includes("buy") ? "Long" : "Short";
+
+        const volume = parseFloat(d.Volume || d.Size || "0") || 0.01;
+        const risk = Math.max(1, Math.abs(Math.round(totalPnL * 0.6)));
+        return {
+          id: `MT5-${d.Deal ?? d.Ticket ?? i}-${ts % 100000}`,
+          date: `${dDate.getFullYear()}-${String(dDate.getMonth() + 1).padStart(2, "0")}-${String(dDate.getDate()).padStart(2, "0")}`,
+          ts,
+          symbol: (d.Symbol || "").toUpperCase() || "UNKNOWN",
+          side,
+          strategy: "Imported",
+          account: "MT5",
+          session: dDate.getHours() < 12 ? "New York" : dDate.getHours() < 18 ? "London" : "Asia",
+          qty: volume,
+          entry: parseFloat(d.EntryPrice || d.OpenPrice || d.Price || "0") || 0,
+          exit: parseFloat(d.ClosePrice || d.Price || "0") || 0,
+          risk,
+          r: risk > 0 ? Math.round((totalPnL / risk) * 100) / 100 : 0,
+          pnl: totalPnL,
+          planned: false,
+        };
+      });
+
   const handleConnect = async () => {
     if (connected) {
       setConnected(false);
-      addLog("Disconnected from MT5 Web API.", "warn");
+      setAccountInfo(null);
+      try { await fetch(`${base}/api/disconnect`, { method: "POST" }); } catch { /* ignore */ }
+      addLog("Disconnected from MT5 bridge.", "warn");
       return;
     }
-    if (!password) {
-      addLog("Password is required to connect.", "error");
+    if (!account || !password) {
+      addLog("Account ID and password are required to connect.", "error");
       return;
     }
     setConnecting(true);
-    addLog(`Connecting to MT5 Web API at localhost:${apiPort}...`, "info");
+    addLog(`Connecting to MT5 bridge at localhost:${apiPort}...`, "info");
 
     try {
-      const ac = new AbortController();
-      const to = setTimeout(() => ac.abort(), 5000);
-      const res = await fetch(`http://localhost:${apiPort}/api/v1/auth`, {
+      const res = await fetch(`${base}/api/connect`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login: account, password }),
-        signal: ac.signal,
+        body: JSON.stringify({ login: account, password, server }),
+        signal: AbortSignal.timeout(10000),
       });
-      clearTimeout(to);
-      if (!res.ok) throw new Error(`Auth failed (${res.status})`);
-      const authData = await res.json();
-      const token = authData.token || authData.access_token || authData.auth_token || "";
-
-      addLog(`Authorized account ${account} on ${server}.`, "success");
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data?.error || `HTTP ${res.status}`);
       setConnected(true);
-      setConnecting(false);
+      setAccountInfo(data);
+      addLog(`Connected to account ${data.account} (${data.server}).`, "success");
 
-      addLog("Fetching trade history...", "info");
-      const ac2 = new AbortController();
-      const to2 = setTimeout(() => ac2.abort(), 15000);
-      const dealsRes = await fetch(`http://localhost:${apiPort}/api/v1/trade/deals`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        signal: ac2.signal,
-      });
-      clearTimeout(to2);
-      if (!dealsRes.ok) throw new Error(`Failed to fetch deals (${dealsRes.status})`);
-      const dealsData = await dealsRes.json();
-
-      const deals = Array.isArray(dealsData)
-        ? dealsData
-        : dealsData.answer || dealsData.deals || dealsData.data || [];
-
-      if (deals.length === 0) {
-        addLog("No closed deals found in account history.", "warn");
-        return;
-      }
-
-      const trades: Trade[] = deals
-        .filter((d: any) => d.Profit !== undefined && d.Profit !== null)
-        .map((d: any, i: number) => {
-          const dateRaw = d.Time || d.CloseTime || d.OpenTime || "";
-          const ts = dateRaw ? new Date(dateRaw).getTime() : Date.now() - i * 60000;
-          const dDate = new Date(ts);
-          const profit = parseFloat(d.Profit) || 0;
-          const comm = parseFloat(d.Commission) || 0;
-          const swap = parseFloat(d.Swap) || 0;
-          const totalPnL = Math.round(profit + comm + swap);
-          const typeRaw = (d.Type ?? "").toString().toLowerCase();
-          const side: "Long" | "Short" =
-            typeRaw === "buy" || typeRaw === "0" || typeRaw.includes("buy")
-              ? "Long"
-              : "Short";
-          const volume = parseFloat(d.Volume || d.Size || "0") || 0.01;
-          const risk = Math.max(1, Math.abs(Math.round(totalPnL * 0.6)));
-          return {
-            id: `MT5-${d.Deal || d.Ticket || i}-${ts % 100000}`,
-            date: `${dDate.getFullYear()}-${String(dDate.getMonth() + 1).padStart(2, "0")}-${String(dDate.getDate()).padStart(2, "0")}`,
-            ts,
-            symbol: (d.Symbol || "").toUpperCase() || "UNKNOWN",
-            side,
-            strategy: "Imported",
-            account: "MT5",
-            session: dDate.getHours() < 12 ? "New York" : dDate.getHours() < 18 ? "London" : "Asia",
-            qty: volume,
-            entry: parseFloat(d.EntryPrice || d.OpenPrice || d.Price || "0") || 0,
-            exit: parseFloat(d.ClosePrice || d.Price || "0") || 0,
-            risk,
-            r: risk > 0 ? Math.round((totalPnL / risk) * 100) / 100 : 0,
-            pnl: totalPnL,
-            planned: false,
-          };
-        });
-
-      if (trades.length) {
-        doReplace(trades);
-        addLog(`Imported ${trades.length} deals from MT5 Web API.`, "success");
+      const deals = await fetchTrades();
+      if (deals.length) {
+        doReplace(mapDeals(deals));
+        addLog(`Imported ${deals.length} closed positions from MT5.`, "success");
       } else {
-        addLog("No trade data parsed from API response.", "warn");
+        addLog("No closed positions found in the selected range.", "warn");
       }
+      setConnecting(false);
     } catch (err: any) {
       setConnected(false);
       setConnecting(false);
       const msg = err.name === "AbortError" ? "Connection timed out" : err.message || "Unknown error";
       addLog(`Connection failed: ${msg}`, "error");
-      addLog(
-        "Make sure MT5 Web API plugin is running on your terminal. Use CSV import as fallback.",
-        "warn"
-      );
+      addLog("Is the Nexora bridge server running? Run: python server/mt5_server.py", "warn");
+      addLog("CSV import below works without the server.", "warn");
+    }
+  };
+
+  const handleResync = async () => {
+    if (!connected) return;
+    try {
+      const deals = await fetchTrades();
+      if (deals.length) {
+        doReplace(mapDeals(deals));
+        addLog(`Resynced ${deals.length} trades from MT5.`, "success");
+      } else {
+        addLog("No closed positions in range. Nothing changed.", "warn");
+      }
+    } catch (err: any) {
+      addLog(`Sync failed: ${err.message}`, "error");
     }
   };
 
@@ -164,6 +174,23 @@ export default function Mt5Bridge({
     };
     reader.readAsText(file);
   };
+
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(1500) });
+        const data = await res.json();
+        if (res.ok) {
+          if (data.connected && data.account) {
+            setConnected(true);
+            addLog(`Bridge alive. Connected to account ${data.account} on ${data.server}.`, "success");
+          }
+        }
+      } catch { /* server not running */ }
+    };
+    check();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Card className="relative overflow-hidden">
@@ -188,7 +215,7 @@ export default function Mt5Bridge({
 
       <CardHead
         title="MT5 Broker Gateway"
-        info="Import real trades from MT5 via Web API or CSV report. Replaces existing data."
+        info="Connect to MetaTrader 5 through the local Python bridge server and pull real closed trades."
         icon={<Cpu size={14} />}
       />
 
@@ -227,9 +254,9 @@ export default function Mt5Bridge({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex-1">
-              <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-mut">API Port</span>
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            <div>
+              <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-mut">Bridge Port</span>
               <input
                 disabled={connected}
                 value={apiPort}
@@ -237,14 +264,15 @@ export default function Mt5Bridge({
                 className="mt-1 w-full rounded-xl border border-edge bg-panel2 px-3 py-1.5 text-xs font-bold text-ink outline-none transition-all focus:border-brand disabled:opacity-60"
               />
             </div>
-            <a
-              href="https://www.metatrader5.com/en/terminal/help/webtrader"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-5 flex items-center gap-1 text-[9px] text-faint hover:text-brand underline"
-            >
-              Setup guide <ExternalLink size={9} />
-            </a>
+            <div>
+              <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-mut">Days back</span>
+              <input
+                disabled={connected}
+                value={daysBack}
+                onChange={(e) => setDaysBack(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-edge bg-panel2 px-3 py-1.5 text-xs font-bold text-ink outline-none transition-all focus:border-brand disabled:opacity-60"
+              />
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 pt-1">
@@ -259,15 +287,45 @@ export default function Mt5Bridge({
               )}
             >
               <Power size={12} strokeWidth={2.5} />
-              {connected ? "Disconnect" : "Connect via Web API"}
+              {connected ? "Disconnect" : "Connect to MT5"}
             </button>
 
-            {!connected && (
-              <span className="text-[9px] text-faint">
-                Requires MT5 Web API plugin on localhost:{apiPort}
-              </span>
+            {connected && (
+              <button
+                onClick={handleResync}
+                className="flex items-center gap-1.5 rounded-xl border border-edge bg-panel2 px-3 py-2 text-[11px] font-bold text-ink transition-all hover:border-brand hover:text-brand"
+              >
+                <RefreshCw size={11} /> Resync
+              </button>
             )}
           </div>
+
+          {accountInfo && (
+            <div className="rounded-xl border border-gain/20 bg-gain-soft/40 px-3.5 py-2">
+              <span className="text-[10px] text-mut">
+                Account {accountInfo.balance?.toLocaleString()} {accountInfo.currency}
+                {accountInfo.equity ? ` · Equity ${accountInfo.equity.toLocaleString()}` : ""}
+              </span>
+            </div>
+          )}
+
+          {/* Bridge setup note */}
+          {!connected && (
+            <div className="rounded-xl border border-edge bg-panel2 px-3.5 py-2.5">
+              <div className="flex items-center gap-2">
+                <Terminal size={13} className="text-brand" />
+                <span className="text-[10px] font-bold text-mut">Run the Python bridge first</span>
+              </div>
+              <pre className="mt-1.5 overflow-x-auto rounded-lg bg-surface px-2.5 py-2 text-[9px] text-ink font-mono">
+{`cd server
+pip install -r requirements.txt
+python mt5_server.py`}
+              </pre>
+              <span className="mt-1 block text-[9px] text-faint">
+                Requires MetaTrader 5 terminal installed on this machine.
+              </span>
+            </div>
+          )}
 
           {/* Divider */}
           <div className="flex items-center gap-3 py-1">
@@ -330,7 +388,7 @@ export default function Mt5Bridge({
               <AlertTriangle size={14} className="text-loss" />
               <span className="text-[10px] font-bold text-loss">NO CONNECTION</span>
               <span className="text-[9px] text-faint ml-1">
-                — use CSV import or configure Web API to fetch live data
+                — start the bridge or import a CSV to load trades
               </span>
             </div>
           )}
@@ -357,18 +415,14 @@ export default function Mt5Bridge({
         <div className="lg:col-span-7">
           <div className="flex items-center justify-between pb-1.5">
             <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-faint">
-              Terminal log
+              Bridge terminal log
             </span>
-            {connected && (
-              <button
-                onClick={() => {
-                  addLog("Manual sync request sent.", "info");
-                }}
-                className="flex items-center gap-1 text-[9.5px] font-bold uppercase tracking-wider text-brand hover:underline"
-              >
-                <ExternalLink size={10} /> Sync now
-              </button>
-            )}
+            <button
+              onClick={() => addLog("Log cleared.", "info")}
+              className="text-[9.5px] font-bold uppercase tracking-wider text-faint hover:text-brand"
+            >
+              Clear
+            </button>
           </div>
           <div className="h-[200px] overflow-y-auto rounded-xl border border-edge bg-panel2 p-3 font-mono text-[10px] leading-relaxed select-none">
             {logs.map((l, i) => (
