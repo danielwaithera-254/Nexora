@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, AlertTriangle, Info } from "lucide-react";
+import { useEffect, useCallback, useMemo, useRef, useState } from "react";
+import { CheckCircle2, AlertTriangle, Info, Upload } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import ControlBar from "./components/ControlBar";
@@ -20,7 +20,7 @@ import Mt5Bridge from "./components/Mt5Bridge";
 import { Reveal } from "./components/ui";
 import {
   generateTrades,
-  parseTradesCSV,
+  parseImportFile,
   tradesToCSV,
   sampleCSV,
   STRATEGIES,
@@ -109,19 +109,63 @@ export default function App() {
     [trades, filters.strategy, filters.account]
   );
 
-  const handleFile = (file: File) => {
+  const handleFile = useCallback((file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
-      const parsed = parseTradesCSV(String(reader.result ?? ""));
-      if (parsed.length) {
-        setTrades((t) => [...t, ...parsed]);
-        showToast(`Imported ${parsed.length} trades from ${file.name}`, "gain");
+      const { trades, report } = parseImportFile(String(reader.result ?? ""));
+      if (trades.length) {
+        setTrades((t) => [...t, ...trades]);
+        const acc = report?.accountNum ? ` · account ${report.accountNum}` : "";
+        showToast(`Imported ${trades.length} trades from ${file.name}${acc}`, "gain");
       } else {
-        showToast("No valid rows found — expected headers: date, symbol, side, pnl…", "loss");
+        showToast(
+          "No valid rows found — expected an MT5 detailed report, MT5 export or date,symbol,side,pnl… CSV",
+          "loss"
+        );
       }
     };
     reader.readAsText(file);
-  };
+  }, []);
+
+  /* global drag-and-drop: drop a CSV anywhere in the app to import it */
+  const [dragging, setDragging] = useState(false);
+
+  useEffect(() => {
+    const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
+    const onDragEnter = (e: DragEvent) => {
+      if (hasFiles(e)) {
+        e.preventDefault();
+        setDragging(true);
+      }
+    };
+    const onDragOver = (e: DragEvent) => {
+      if (hasFiles(e)) e.preventDefault();
+    };
+    const onDragLeave = (e: DragEvent) => {
+      if (!e.relatedTarget) setDragging(false);
+    };
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      setDragging(false);
+      const f = e.dataTransfer?.files?.[0];
+      if (!f) return;
+      if (!f.name.toLowerCase().endsWith(".csv")) {
+        showToast(`Drop a CSV file — "${f.name}" isn't one`, "loss");
+        return;
+      }
+      handleFile(f);
+    };
+    window.addEventListener("dragenter", onDragEnter);
+    window.addEventListener("dragover", onDragOver);
+    window.addEventListener("dragleave", onDragLeave);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragenter", onDragEnter);
+      window.removeEventListener("dragover", onDragOver);
+      window.removeEventListener("dragleave", onDragLeave);
+      window.removeEventListener("drop", onDrop);
+    };
+  }, [handleFile]);
 
   const handleExport = () => {
     const csv = tradesToCSV(current);
@@ -350,6 +394,20 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {dragging && (
+        <div className="pointer-events-none fixed inset-0 z-[90] flex items-center justify-center bg-surface/70 backdrop-blur-sm">
+          <div className="rounded-2xl border-2 border-dashed border-brand bg-panel px-12 py-10 text-center shadow-2xl">
+            <Upload size={30} className="mx-auto text-brand" />
+            <div className="mt-3 text-sm font-extrabold text-ink">
+              Drop your CSV anywhere to import
+            </div>
+            <div className="mt-1 text-[11px] text-mut">
+              MT5 detailed reports (Positions/Deals/Results), MT5 exports or Nexora journal CSVs
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

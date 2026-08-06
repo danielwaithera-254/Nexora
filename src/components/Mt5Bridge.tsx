@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Cpu, Power, Upload, FileDown, RefreshCw, AlertTriangle, Terminal } from "lucide-react";
 import { Card, CardHead } from "./ui";
-import type { Trade } from "../data/trades";
-import { parseMT5CSV } from "../data/trades";
+import type { Trade, MT5Report } from "../data/trades";
+import { parseImportFile } from "../data/trades";
 import { cn } from "../utils/cn";
 
 interface LogLine {
@@ -31,7 +31,14 @@ export default function Mt5Bridge({
   const [logs, setLogs] = useState<LogLine[]>([
     { time: "09:30:00", msg: "Bridge client loaded. No connection.", type: "info" },
   ]);
-  const [importStats, setImportStats] = useState<{ count: number; totalPnL: number } | null>(null);
+  const [importStats, setImportStats] = useState<{
+    count: number;
+    totalPnL: number;
+    account?: string;
+    profitFactor?: string;
+    totalTrades?: string;
+    sharpe?: string;
+  } | null>(null);
   const [dragOver, setDragOver] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -42,9 +49,17 @@ export default function Mt5Bridge({
     setLogs((l) => [{ time, msg, type }, ...l].slice(0, 50));
   };
 
-  const doReplace = (trades: Trade[]) => {
+  const doReplace = (trades: Trade[], report?: MT5Report | null) => {
     const pnl = trades.reduce((s, t) => s + t.pnl, 0);
-    setImportStats({ count: trades.length, totalPnL: pnl });
+    const r = report?.results ?? {};
+    setImportStats({
+      count: trades.length,
+      totalPnL: pnl,
+      account: report?.accountNum || undefined,
+      profitFactor: r["profit factor"] && r["profit factor"] !== "" ? r["profit factor"] : undefined,
+      totalTrades: r["total trades"] || undefined,
+      sharpe: r["sharpe ratio"] || undefined,
+    });
     onReplaceTrades(trades);
     addLog(`Loaded ${trades.length} trades (net P&L: ${pnl >= 0 ? "+" : ""}$${pnl.toLocaleString()})`, "success");
     if (onNavigate) onNavigate();
@@ -164,10 +179,13 @@ export default function Mt5Bridge({
     const reader = new FileReader();
     reader.onload = () => {
       const text = String(reader.result ?? "");
-      const parsed = parseMT5CSV(text);
-      if (parsed.length) {
-        doReplace(parsed);
-        addLog(`Imported ${parsed.length} trades from MT5 report file.`, "success");
+      const { trades, report } = parseImportFile(text);
+      if (trades.length) {
+        doReplace(trades, report);
+        addLog(
+          `Imported ${trades.length} trades from ${file.name}${report?.accountNum ? ` · account ${report.accountNum}` : ""}.`,
+          "success"
+        );
       } else {
         addLog("No valid trades found. Check the file format.", "error");
       }
@@ -343,15 +361,18 @@ python mt5_server.py`}
               Export your trade history from MetaTrader 5: open{" "}
               <span className="font-bold text-mut">Account History</span> tab →
               right-click → <span className="font-bold text-mut">Save as Detailed Report</span> →
-              choose CSV format. Drop the file below.
+              choose CSV format, or export the trade report directly. Drop the file
+              anywhere in the app.
             </p>
           </div>
 
           <div
+            data-dropzone
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={(e) => {
               e.preventDefault();
+              e.stopPropagation();
               setDragOver(false);
               const f = e.dataTransfer.files[0];
               if (f) handleMT5File(f);
@@ -366,9 +387,11 @@ python mt5_server.py`}
           >
             <Upload size={20} className="text-faint" />
             <span className="text-[11px] font-bold text-mut">
-              Drop MT5 CSV here or click to browse
+              Drop your report CSV here or click to browse
             </span>
-            <span className="text-[9px] text-faint">Accepts .csv files from MT5</span>
+            <span className="text-[9px] text-faint">
+              Accepts MT5 detailed reports (Positions/Deals/Results), MT5 exports or Nexora CSVs
+            </span>
           </div>
 
           <input
@@ -398,7 +421,7 @@ python mt5_server.py`}
               <div className="flex items-center gap-2">
                 <FileDown size={13} className="text-gain" />
                 <span className="text-[11px] font-bold text-gain">
-                  {importStats.count} trades loaded
+                  {importStats.count} trades loaded{importStats.account ? ` · Account ${importStats.account}` : ""}
                 </span>
               </div>
               <span className="text-[10px] text-mut">
@@ -407,6 +430,19 @@ python mt5_server.py`}
                   {importStats.totalPnL >= 0 ? "+" : ""}${importStats.totalPnL.toLocaleString()}
                 </span>
               </span>
+              {(importStats.totalTrades || importStats.profitFactor || importStats.sharpe) && (
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[9.5px] text-mut">
+                  {importStats.totalTrades && (
+                    <span>Total trades (report): <b className="text-ink">{importStats.totalTrades}</b></span>
+                  )}
+                  {importStats.profitFactor && (
+                    <span>Profit factor: <b className="text-ink">{importStats.profitFactor}</b></span>
+                  )}
+                  {importStats.sharpe && (
+                    <span>Sharpe: <b className="text-ink">{importStats.sharpe}</b></span>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
