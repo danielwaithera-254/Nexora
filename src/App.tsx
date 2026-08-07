@@ -484,10 +484,13 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
     }
   }, []);
 
-  const scopedTrades = useMemo(
-    () => (activeAccount === "All" ? trades : trades.filter((t) => t.account === activeAccount)),
-    [trades, activeAccount]
-  );
+  const scopedTrades = useMemo(() => {
+    if (activeAccount === "All") return trades;
+    const accounts = vaultGet("accounts", SEED_ACCOUNTS);
+    const acc = accounts.find((a) => (a.tradeAccount || a.name) === activeAccount);
+    const tags = acc ? new Set([acc.tradeAccount, acc.name].filter(Boolean)) : new Set([activeAccount]);
+    return trades.filter((t) => tags.has(t.account));
+  }, [trades, activeAccount, accountsVersion]);
   const { current, previous } = useMemo(() => splitByFilters(scopedTrades, filters), [scopedTrades, filters]);
   const k = useMemo(() => withRisk(computeKpis(current), current), [current]);
   const prevK = useMemo(() => (previous.length ? computeKpis(previous) : null), [previous]);
@@ -519,15 +522,27 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   );
 
   const accountOptions = useMemo(() => {
-    const linked = new Set(vaultGet("accounts", SEED_ACCOUNTS).map((a) => a.tradeAccount || a.name));
-    const tags = new Set(trades.map((t) => t.account).filter(Boolean));
-    const counts = new Map<string, number>();
-    for (const t of trades) counts.set(t.account, (counts.get(t.account) ?? 0) + 1);
-    const all = [...new Set([...linked, ...tags])].sort((a, b) => a.localeCompare(b));
-    return [
-      { value: "All", label: "All accounts" },
-      ...all.map((n) => ({ value: n, label: `${n} · ${counts.get(n) ?? 0}` })),
-    ];
+    const tagSets = new Map<string, Set<string>>();
+    for (const a of vaultGet("accounts", SEED_ACCOUNTS)) {
+      const value = a.tradeAccount || a.name;
+      const set = tagSets.get(value) ?? new Set<string>();
+      if (a.tradeAccount) set.add(a.tradeAccount);
+      set.add(a.name);
+      tagSets.set(value, set);
+    }
+    const countFor = (tags: Set<string>) => trades.reduce((s, t) => s + (tags.has(t.account) ? 1 : 0), 0);
+    const options: { value: string; label: string }[] = [{ value: "All", label: "All accounts" }];
+    const seen = new Set<string>();
+    for (const [value, tags] of tagSets) {
+      seen.add(value);
+      options.push({ value, label: `${value} · ${countFor(tags)}` });
+    }
+    for (const tag of [...new Set(trades.map((t) => t.account).filter(Boolean))].sort((a, b) => a.localeCompare(b))) {
+      if (seen.has(tag)) continue;
+      seen.add(tag);
+      options.push({ value: tag, label: `${tag} · ${countFor(new Set([tag]))}` });
+    }
+    return options;
   }, [accountsVersion, activeAccount, trades.length]);
 
   const handleFile = useCallback((file: File) => {
