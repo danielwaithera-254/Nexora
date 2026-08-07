@@ -19,10 +19,12 @@ export default function Accounts({
   trades,
   onImportTrades,
   onAccountsChanged,
+  onRetagTrades,
 }: {
   trades: Trade[];
   onImportTrades: (list: Trade[], accountName: string, sourceName: string) => void;
   onAccountsChanged: () => void;
+  onRetagTrades: (from: string, to: string) => void;
 }) {
   const [accounts, setAccounts] = useState<AccountDef[]>(() => vaultGet("accounts", SEED_ACCOUNTS));
   const [editing, setEditing] = useState<AccountDef | null>(null);
@@ -174,6 +176,12 @@ export default function Accounts({
         <AccountEditor
           acc={editing}
           onSave={(next) => {
+            const prev = accounts.find((a) => a.id === next.id);
+            if (prev) {
+              const oldLink = prev.tradeAccount || prev.name;
+              const newLink = next.tradeAccount || next.name;
+              if (oldLink !== newLink) onRetagTrades(oldLink, newLink);
+            }
             const exists = accounts.some((a) => a.id === next.id);
             persist(exists ? accounts.map((a) => (a.id === next.id ? next : a)) : [...accounts, next]);
             setEditing(null);

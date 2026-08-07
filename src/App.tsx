@@ -468,10 +468,21 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
         return [...prev, ...list.filter((t) => !seen.has(t.id))];
       });
       changeAccount(accountName);
+      setFilters({ range: "ALL", strategy: "All", account: "All" });
       showToast(`Imported ${list.length} trades into ${accountName} (${sourceName})`, "gain");
     },
     []
   );
+
+  const retagTrades = useCallback((from: string, to: string) => {
+    if (from === to) return;
+    setTrades((prev) => prev.map((t) => (t.account === from ? { ...t, account: to } : t)));
+    const settings = vaultGet<{ name?: string; activeAccount?: string }>("settings", {});
+    if (settings.activeAccount === from) {
+      setActiveAccount(to);
+      vaultSet("settings", { ...settings, activeAccount: to });
+    }
+  }, []);
 
   const scopedTrades = useMemo(
     () => (activeAccount === "All" ? trades : trades.filter((t) => t.account === activeAccount)),
@@ -521,6 +532,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
       const { trades, report } = parseImportFile(String(reader.result ?? ""));
       if (trades.length) {
         setTrades((t) => [...t, ...trades]);
+        setFilters({ range: "ALL", strategy: "All", account: "All" });
         const acc = report?.accountNum ? ` · account ${report.accountNum}` : "";
         showToast(`Imported ${trades.length} trades from ${file.name}${acc}`, "gain");
       } else {
@@ -755,6 +767,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
               trades={scopedTrades}
               onImportTrades={importTrades}
               onAccountsChanged={() => setAccountsVersion((v) => v + 1)}
+              onRetagTrades={retagTrades}
             />
           </Reveal>
         );
