@@ -38,7 +38,7 @@ import AnalyzeLosses from "./components/AnalyzeLosses";
 import Accounts from "./components/Accounts";
 import Risk from "./components/Risk";
 import Settings from "./components/Settings";
-import { Reveal } from "./components/ui";
+import { Reveal, Seg } from "./components/ui";
 import { canUseVault, lockVault, migrateLegacy, trySessionUnlock, vaultExists, vaultGet, vaultSet } from "./lib/vault";
 import { generateOpenPositions } from "./lib/risk";
 import { fmtMoney, fmtPct } from "./lib/format";
@@ -93,6 +93,25 @@ interface Toast {
 
 const isoToday = () => new Date().toISOString().slice(0, 10);
 
+const PERIODS = [
+  { key: "today", label: "Today" },
+  { key: "week", label: "7d" },
+  { key: "month", label: "30d" },
+  { key: "all", label: "All" },
+] as const;
+type PeriodKey = (typeof PERIODS)[number]["key"];
+const PERIOD_LABEL: Record<PeriodKey, string> = {
+  today: "Today",
+  week: "Last 7 days",
+  month: "Last 30 days",
+  all: "All time",
+};
+const isoDaysAgo = (n: number) => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
+};
+
 function CommandCenter({
   trades,
   bal,
@@ -108,26 +127,35 @@ function CommandCenter({
   onSelect: (t: Trade) => void;
   onAnalyze: () => void;
 }) {
-  const todays = trades.filter((t) => t.date === isoToday());
-  const tPnl = todays.reduce((s, t) => s + t.pnl, 0);
-  const tWins = todays.filter((t) => t.pnl > 0).length;
-  const tCount = todays.length;
+  const [period, setPeriod] = useState<PeriodKey>("today");
+
+  const periodTrades = useMemo(() => {
+    if (period === "today") return trades.filter((t) => t.date === isoToday());
+    if (period === "week") return trades.filter((t) => t.date >= isoDaysAgo(6));
+    if (period === "month") return trades.filter((t) => t.date >= isoDaysAgo(29));
+    return trades;
+  }, [trades, period]);
+
+  const scoped = periodTrades;
+  const tPnl = scoped.reduce((s, t) => s + t.pnl, 0);
+  const tWins = scoped.filter((t) => t.pnl > 0).length;
+  const tCount = scoped.length;
   const winRate = tCount ? (tWins / tCount) * 100 : 0;
-  const best = todays.reduce<{ pnl: number; symbol: string } | null>(
+  const best = scoped.reduce<{ pnl: number; symbol: string } | null>(
     (b, t) => (b === null || t.pnl > b.pnl ? { pnl: t.pnl, symbol: t.symbol } : b),
     null
   );
 
   const bySymbol = useMemo(() => {
     const m = new Map<string, { pnl: number; count: number }>();
-    for (const t of todays) {
+    for (const t of scoped) {
       const e = m.get(t.symbol) ?? { pnl: 0, count: 0 };
       e.pnl += t.pnl;
       e.count++;
       m.set(t.symbol, e);
     }
     return [...m.entries()].map(([symbol, e]) => ({ symbol, ...e })).sort((a, b) => b.pnl - a.pnl);
-  }, [todays.length, tPnl]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [periodTrades]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const positions = useMemo(() => generateOpenPositions(trades), [trades]);
 
@@ -156,19 +184,22 @@ function CommandCenter({
             <p className="mt-1 text-[11px] font-semibold text-mut">{dateLabel}</p>
           </div>
           {best && best.pnl > 0 && (
-            <span className="ml-auto hidden items-center gap-1.5 rounded-xl bg-gain-soft px-3 py-2 text-[10.5px] font-extrabold text-gain sm:flex">
-              <Sparkles size={12} /> Best today: {best.symbol} +${best.pnl.toLocaleString()}
+            <span className="hidden items-center gap-1.5 rounded-xl bg-gain-soft px-3 py-2 text-[10.5px] font-extrabold text-gain sm:flex">
+              <Sparkles size={12} /> Best {PERIOD_LABEL[period].toLowerCase()}: {best.symbol} +${best.pnl.toLocaleString()}
             </span>
           )}
+          <div className="ml-auto sm:ml-0">
+            <Seg options={[...PERIODS]} value={period} onChange={setPeriod} />
+          </div>
         </div>
 
         {/* today strip */}
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <TodayStat
-            label="Today's P&L"
+            label={`${PERIOD_LABEL[period]} P&L`}
             value={fmtMoney(tPnl, { sign: true })}
             tone={tPnl >= 0 ? "gain" : "loss"}
-            sub={tCount ? `${tCount} trade${tCount > 1 ? "s" : ""} today` : "No trades today"}
+            sub={tCount ? `${tCount} trade${tCount > 1 ? "s" : ""} in this period` : `No trades ${period === "today" ? "today" : "in this period"}`}
           />
           <TodayStat
             label="Win rate"
@@ -189,11 +220,11 @@ function CommandCenter({
       <BalanceCard data={bal} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* today's performance */}
+        {/* period performance */}
         <div className="rounded-2xl border border-edge bg-panel p-5">
-          <p className="text-[10px] font-extrabold uppercase tracking-wider text-faint">Today's performance</p>
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-faint">{PERIOD_LABEL[period]} performance</p>
           {bySymbol.length === 0 ? (
-            <p className="py-8 text-center text-[11px] font-bold text-faint">No trades today — import a CSV or generate a sample to see your day.</p>
+            <p className="py-8 text-center text-[11px] font-bold text-faint">No trades {period === "today" ? "today" : "in this period"} — import a CSV or generate a sample to see your day.</p>
           ) : (
             <div className="mt-3 space-y-2">
               {bySymbol.map((s) => (
@@ -244,14 +275,14 @@ function CommandCenter({
           </div>
         </div>
 
-        {/* today's trades */}
+        {/* period activity */}
         <div className="rounded-2xl border border-edge bg-panel p-5">
-          <p className="text-[10px] font-extrabold uppercase tracking-wider text-faint">Today's activity</p>
-          {todays.length === 0 ? (
-            <p className="py-8 text-center text-[11px] font-bold text-faint">Nothing closed yet today.</p>
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-faint">{PERIOD_LABEL[period]} activity</p>
+          {scoped.length === 0 ? (
+            <p className="py-8 text-center text-[11px] font-bold text-faint">Nothing closed in this period.</p>
           ) : (
             <div className="mt-3 space-y-1">
-              {[...todays].reverse().slice(0, 6).map((t) => (
+              {[...scoped].reverse().slice(0, 6).map((t) => (
                 <button
                   key={t.id}
                   onClick={() => onSelect(t)}
