@@ -15,6 +15,7 @@ import TradesTable from "./components/TradesTable";
 import InsightsDrawer from "./components/InsightsDrawer";
 import DailyJournal from "./components/DailyJournal";
 import Notebook from "./components/Notebook";
+import Attachments from "./components/Attachments";
 import ComingSoon from "./components/ComingSoon";
 import Mt5Bridge from "./components/Mt5Bridge";
 import { Reveal } from "./components/ui";
@@ -48,6 +49,7 @@ type PageId =
   | "trades"
   | "mt5"
   | "notebook"
+  | "attachments"
   | "playbooks"
   | "progress"
   | "replay"
@@ -307,6 +309,12 @@ export default function App() {
             <Notebook trades={current} />
           </Reveal>
         );
+      case "attachments":
+        return (
+          <Reveal>
+            <Attachments />
+          </Reveal>
+        );
       case "playbooks":
       case "progress":
       case "replay":
@@ -321,6 +329,7 @@ export default function App() {
     trades: "Trades",
     mt5: "MT5 Gateway",
     notebook: "Notebook",
+    attachments: "Attachments",
     playbooks: "Playbooks",
     progress: "Progress Tracker",
     replay: "Trade Replay",

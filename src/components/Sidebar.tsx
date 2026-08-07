@@ -8,6 +8,7 @@ import {
   TrendingUp,
   RotateCw,
   GraduationCap,
+  Images,
   Plus,
   Settings,
   X,
@@ -20,6 +21,7 @@ export type PageId =
   | "trades"
   | "mt5"
   | "notebook"
+  | "attachments"
   | "playbooks"
   | "progress"
   | "replay"
@@ -38,6 +40,7 @@ const NAV: NavItem[] = [
   { id: "trades", name: "Trades", icon: CandlestickChart },
   { id: "mt5", name: "MT5 Gateway", icon: RadioTower, badge: "LIVE" },
   { id: "notebook", name: "Notebook", icon: NotebookPen, badge: "NEW" },
+  { id: "attachments", name: "Attachments", icon: Images, badge: "NEW" },
   { id: "playbooks", name: "Playbooks", icon: Layers },
   { id: "progress", name: "Progress Tracker", icon: TrendingUp },
   { id: "replay", name: "Trade Replay", icon: RotateCw, badge: "BETA" },
