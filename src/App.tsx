@@ -562,7 +562,10 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
       const stamp = activeAccount === "All" ? undefined : activeAccount;
       const { trades, report } = parseImportFile(String(reader.result ?? ""), stamp);
       if (trades.length) {
-        setTrades((t) => [...t, ...trades]);
+        setTrades((prev) => {
+          const seen = new Set(prev.map((t) => t.id));
+          return [...prev, ...trades.filter((t) => !seen.has(t.id))];
+        });
         setFilters({ range: "ALL", strategy: "All", account: "All" });
         const acc = report?.accountNum ? ` · account ${report.accountNum}` : "";
         showToast(

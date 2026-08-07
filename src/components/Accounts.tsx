@@ -34,9 +34,13 @@ export default function Accounts({
   const pendingAccRef = useRef<AccountDef | null>(null);
 
   const persist = (next: AccountDef[]) => {
-    setAccounts(next);
-    vaultSet("accounts", next);
     const settings = vaultGet<{ name?: string; customAccounts?: boolean }>("settings", {});
+    let list = next;
+    if (!settings.customAccounts) {
+      list = next.filter((a) => !SEED_ACCOUNTS.some((s) => s.id === a.id));
+    }
+    setAccounts(list);
+    vaultSet("accounts", list);
     vaultSet("settings", { ...settings, customAccounts: true });
     onAccountsChanged();
   };
