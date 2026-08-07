@@ -1,8 +1,7 @@
-import { useState, useRef, useEffect } from "react";
-import { Cpu, Power, Upload, FileDown, RefreshCw, AlertTriangle, Terminal } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Cpu, Power, FileDown, RefreshCw, AlertTriangle, Terminal } from "lucide-react";
 import { Card, CardHead } from "./ui";
 import type { Trade, MT5Report } from "../data/trades";
-import { parseImportFile } from "../data/trades";
 import { cn } from "../utils/cn";
 
 interface LogLine {
@@ -39,9 +38,7 @@ export default function Mt5Bridge({
     totalTrades?: string;
     sharpe?: string;
   } | null>(null);
-  const [dragOver, setDragOver] = useState(false);
 
-  const fileRef = useRef<HTMLInputElement>(null);
   const base = `http://localhost:${apiPort}`;
 
   const addLog = (msg: string, type: LogLine["type"] = "info") => {
@@ -173,24 +170,6 @@ export default function Mt5Bridge({
     } catch (err: any) {
       addLog(`Sync failed: ${err.message}`, "error");
     }
-  };
-
-  const handleMT5File = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = String(reader.result ?? "");
-      const { trades, report } = parseImportFile(text);
-      if (trades.length) {
-        doReplace(trades, report);
-        addLog(
-          `Imported ${trades.length} trades from ${file.name}${report?.accountNum ? ` · account ${report.accountNum}` : ""}.`,
-          "success"
-        );
-      } else {
-        addLog("No valid trades found. Check the file format.", "error");
-      }
-    };
-    reader.readAsText(file);
   };
 
   useEffect(() => {
@@ -352,66 +331,21 @@ python mt5_server.py`}
             <span className="h-px flex-1 bg-edge" />
           </div>
 
-          {/* MT5 CSV Import */}
-          <div>
-            <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-mut">
-              Import from MT5 Report
-            </span>
-            <p className="mt-0.5 text-[10px] leading-relaxed text-faint">
-              Export your trade history from MetaTrader 5: open{" "}
-              <span className="font-bold text-mut">Account History</span> tab →
-              right-click → <span className="font-bold text-mut">Save as Detailed Report</span> →
-              choose CSV format, or export the trade report directly. Drop the file
-              anywhere in the app.
+          {/* CSV imports now live on the Accounts page */}
+          <div className="rounded-xl border border-edge bg-panel2 px-3.5 py-2.5">
+            <p className="text-[10px] leading-relaxed text-faint">
+              Importing trade history from a CSV happens per account — go to the{" "}
+              <span className="font-bold text-mut">Accounts</span> page, choose an account and use its upload icon. Trades
+              from a CSV always belong to that account.
             </p>
           </div>
-
-          <div
-            data-dropzone
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setDragOver(false);
-              const f = e.dataTransfer.files[0];
-              if (f) handleMT5File(f);
-            }}
-            onClick={() => fileRef.current?.click()}
-            className={cn(
-              "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-5 transition-all",
-              dragOver
-                ? "border-brand bg-brand/5"
-                : "border-edge bg-panel2 hover:border-brand/50 hover:bg-panel"
-            )}
-          >
-            <Upload size={20} className="text-faint" />
-            <span className="text-[11px] font-bold text-mut">
-              Drop your report CSV here or click to browse
-            </span>
-            <span className="text-[9px] text-faint">
-              Accepts MT5 detailed reports (Positions/Deals/Results), MT5 exports or Nexora CSVs
-            </span>
-          </div>
-
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleMT5File(f);
-              e.target.value = "";
-            }}
-          />
 
           {!connected && !importStats && (
             <div className="flex items-center gap-2 rounded-xl border border-loss/20 bg-loss-soft/30 px-3.5 py-2.5">
               <AlertTriangle size={14} className="text-loss" />
               <span className="text-[10px] font-bold text-loss">NO CONNECTION</span>
               <span className="text-[9px] text-faint ml-1">
-                — start the bridge or import a CSV to load trades
+                — start the bridge to pull live history
               </span>
             </div>
           )}

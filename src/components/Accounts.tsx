@@ -230,6 +230,20 @@ export default function Accounts({
                 </div>
               ))}
             </div>
+            {orphans.some(([tag]) => tag.startsWith("MT5-")) && (
+              <button
+                onClick={() => {
+                  const mt5 = orphans.filter(([tag]) => tag.startsWith("MT5-"));
+                  const total = mt5.reduce((s, [, c]) => s + c, 0);
+                  if (window.confirm(`Remove all ${total} MT5 trades not linked to an account?`)) {
+                    onDeleteTrades(mt5.map(([tag]) => tag));
+                  }
+                }}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-edge bg-panel2 px-3 py-1.5 text-[10px] font-bold text-loss transition-colors hover:bg-loss-soft"
+              >
+                <X size={11} /> Remove all unlinked MT5 trades
+              </button>
+            )}
           </div>
         )}
       </Card>

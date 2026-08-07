@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   Info,
   NotebookPen,
-  Plus,
   Sparkles,
   Upload,
 } from "lucide-react";
@@ -46,7 +45,6 @@ import { cn } from "./utils/cn";
 
 import {
   generateTrades,
-  parseImportFile,
   tradesToCSV,
   sampleCSV,
   STRATEGIES,
@@ -115,14 +113,12 @@ const isoDaysAgo = (n: number) => {
 function CommandCenter({
   trades,
   bal,
-  onImport,
   onNavigate,
   onSelect,
   onAnalyze,
 }: {
   trades: Trade[];
   bal: { date: string; balance: number }[];
-  onImport: () => void;
   onNavigate: (id: PageId) => void;
   onSelect: (t: Trade) => void;
   onAnalyze: () => void;
@@ -310,7 +306,7 @@ function CommandCenter({
 
       {/* quick actions */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <QuickAction icon={<Plus size={15} />} label="Add trade" hint="Import CSV" onClick={onImport} />
+        <QuickAction icon={<Upload size={15} />} label="Import CSV" hint="Via an account" onClick={() => onNavigate("accounts")} />
         <QuickAction icon={<Camera size={15} />} label="Screenshots" hint="Attachments" onClick={() => onNavigate("attachments")} />
         <QuickAction icon={<NotebookPen size={15} />} label="Journal" hint="Daily notes" onClick={() => onNavigate("journal")} />
         <QuickAction icon={<BarChart3 size={15} />} label="Analyze" hint="Reports" onClick={() => onNavigate("reports")} />
@@ -426,10 +422,12 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [activeAccount, setActiveAccount] = useState<string>(
-    () => vaultGet<{ activeAccount?: string }>("settings", {}).activeAccount ?? "All"
+    () => {
+      const stored = vaultGet<{ activeAccount?: string }>("settings", {}).activeAccount ?? "";
+      return stored === "All" ? "" : stored;
+    }
   );
   const [accountsVersion, setAccountsVersion] = useState(0);
-  const fileRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<number>(0);
   const [syncLabel] = useState(() =>
     new Date().toLocaleString("en-US", {
@@ -489,19 +487,48 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
     setTrades((prev) => prev.filter((t) => !del.has(t.account)));
     const settings = vaultGet<{ name?: string; activeAccount?: string }>("settings", {});
     if (settings.activeAccount && del.has(settings.activeAccount)) {
-      setActiveAccount("All");
-      vaultSet("settings", { ...settings, activeAccount: "All" });
+      setActiveAccount("");
+      vaultSet("settings", { ...settings, activeAccount: "" });
     }
     showToast(`Removed trades tagged ${tags.join(", ")}`, "brand");
   }, []);
 
+  const accountOptions = useMemo(() => {
+    const tagSets = new Map<string, Set<string>>();
+    for (const a of vaultGet("accounts", SEED_ACCOUNTS)) {
+      const value = a.tradeAccount || a.name;
+      const set = tagSets.get(value) ?? new Set<string>();
+      if (a.tradeAccount) set.add(a.tradeAccount);
+      set.add(a.name);
+      tagSets.set(value, set);
+    }
+    const countFor = (tags: Set<string>) => trades.reduce((s, t) => s + (tags.has(t.account) ? 1 : 0), 0);
+    const options: { value: string; label: string }[] = [];
+    const seen = new Set<string>();
+    for (const [value, tags] of tagSets) {
+      seen.add(value);
+      options.push({ value, label: `${value} · ${countFor(tags)}` });
+    }
+    for (const tag of [...new Set(trades.map((t) => t.account).filter(Boolean))].sort((a, b) => a.localeCompare(b))) {
+      if (seen.has(tag)) continue;
+      seen.add(tag);
+      options.push({ value: tag, label: `${tag} · ${countFor(new Set([tag]))}` });
+    }
+    return options;
+  }, [accountsVersion, activeAccount, trades.length]);
+
+  const effectiveAccount = useMemo(() => {
+    if (activeAccount && accountOptions.some((o) => o.value === activeAccount)) return activeAccount;
+    return accountOptions[0]?.value ?? "";
+  }, [activeAccount, accountOptions]);
+
   const scopedTrades = useMemo(() => {
-    if (activeAccount === "All") return trades;
+    if (!effectiveAccount) return trades;
     const accounts = vaultGet("accounts", SEED_ACCOUNTS);
-    const acc = accounts.find((a) => (a.tradeAccount || a.name) === activeAccount);
-    const tags = acc ? new Set([acc.tradeAccount, acc.name].filter(Boolean)) : new Set([activeAccount]);
+    const acc = accounts.find((a) => (a.tradeAccount || a.name) === effectiveAccount);
+    const tags = acc ? new Set([acc.tradeAccount, acc.name].filter(Boolean)) : new Set([effectiveAccount]);
     return trades.filter((t) => tags.has(t.account));
-  }, [trades, activeAccount, accountsVersion]);
+  }, [trades, effectiveAccount, accountsVersion]);
   const { current, previous } = useMemo(() => splitByFilters(scopedTrades, filters), [scopedTrades, filters]);
   const k = useMemo(() => withRisk(computeKpis(current), current), [current]);
   const prevK = useMemo(() => (previous.length ? computeKpis(previous) : null), [previous]);
@@ -510,13 +537,13 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   const accSettings = vaultGet<{ name?: string; customAccounts?: boolean }>("settings", {});
   const startCapital = useMemo(() => {
     const accounts = vaultGet("accounts", SEED_ACCOUNTS);
-    if (activeAccount !== "All") {
-      const match = accounts.find((a) => (a.tradeAccount || a.name) === activeAccount);
+    if (effectiveAccount) {
+      const match = accounts.find((a) => (a.tradeAccount || a.name) === effectiveAccount);
       if (match) return match.balance;
     }
     if (accSettings.customAccounts) return accounts.reduce((s, a) => s + a.balance, 0) || 25000;
     return 25000;
-  }, [activeAccount, accSettings.customAccounts]);
+  }, [effectiveAccount, accSettings.customAccounts]);
   const bal = useMemo(() => balanceSeries(scopedTrades, startCapital), [scopedTrades, startCapital]);
   const wd = useMemo(() => weekdaySeries(current), [current]);
   const donut = useMemo(() => donutData(k), [k]);
@@ -531,96 +558,6 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
       ),
     [scopedTrades, filters.strategy, filters.account]
   );
-
-  const accountOptions = useMemo(() => {
-    const tagSets = new Map<string, Set<string>>();
-    for (const a of vaultGet("accounts", SEED_ACCOUNTS)) {
-      const value = a.tradeAccount || a.name;
-      const set = tagSets.get(value) ?? new Set<string>();
-      if (a.tradeAccount) set.add(a.tradeAccount);
-      set.add(a.name);
-      tagSets.set(value, set);
-    }
-    const countFor = (tags: Set<string>) => trades.reduce((s, t) => s + (tags.has(t.account) ? 1 : 0), 0);
-    const options: { value: string; label: string }[] = [{ value: "All", label: "All accounts" }];
-    const seen = new Set<string>();
-    for (const [value, tags] of tagSets) {
-      seen.add(value);
-      options.push({ value, label: `${value} · ${countFor(tags)}` });
-    }
-    for (const tag of [...new Set(trades.map((t) => t.account).filter(Boolean))].sort((a, b) => a.localeCompare(b))) {
-      if (seen.has(tag)) continue;
-      seen.add(tag);
-      options.push({ value: tag, label: `${tag} · ${countFor(new Set([tag]))}` });
-    }
-    return options;
-  }, [accountsVersion, activeAccount, trades.length]);
-
-  const handleFile = useCallback((file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const stamp = activeAccount === "All" ? undefined : activeAccount;
-      const { trades, report } = parseImportFile(String(reader.result ?? ""), stamp);
-      if (trades.length) {
-        setTrades((prev) => {
-          const seen = new Set(prev.map((t) => t.id));
-          return [...prev, ...trades.filter((t) => !seen.has(t.id))];
-        });
-        setFilters({ range: "ALL", strategy: "All", account: "All" });
-        const acc = report?.accountNum ? ` · account ${report.accountNum}` : "";
-        showToast(
-          `Imported ${trades.length} trades from ${file.name}${acc}${stamp ? ` into ${stamp}` : ""}`,
-          "gain"
-        );
-      } else {
-        showToast(
-          "No valid rows found — expected an MT5 detailed report, MT5 export or date,symbol,side,pnl… CSV",
-          "loss"
-        );
-      }
-    };
-    reader.readAsText(file);
-  }, [activeAccount]);
-
-  /* global drag-and-drop: drop a CSV anywhere in the app to import it */
-  const [dragging, setDragging] = useState(false);
-
-  useEffect(() => {
-    const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
-    const onDragEnter = (e: DragEvent) => {
-      if (hasFiles(e)) {
-        e.preventDefault();
-        setDragging(true);
-      }
-    };
-    const onDragOver = (e: DragEvent) => {
-      if (hasFiles(e)) e.preventDefault();
-    };
-    const onDragLeave = (e: DragEvent) => {
-      if (!e.relatedTarget) setDragging(false);
-    };
-    const onDrop = (e: DragEvent) => {
-      e.preventDefault();
-      setDragging(false);
-      const f = e.dataTransfer?.files?.[0];
-      if (!f) return;
-      if (!f.name.toLowerCase().endsWith(".csv")) {
-        showToast(`Drop a CSV file — "${f.name}" isn't one`, "loss");
-        return;
-      }
-      handleFile(f);
-    };
-    window.addEventListener("dragenter", onDragEnter);
-    window.addEventListener("dragover", onDragOver);
-    window.addEventListener("dragleave", onDragLeave);
-    window.addEventListener("drop", onDrop);
-    return () => {
-      window.removeEventListener("dragenter", onDragEnter);
-      window.removeEventListener("dragover", onDragOver);
-      window.removeEventListener("dragleave", onDragLeave);
-      window.removeEventListener("drop", onDrop);
-    };
-  }, [handleFile]);
 
   const handleExport = () => {
     const csv = tradesToCSV(current);
@@ -659,7 +596,6 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
               <CommandCenter
                 trades={scopedTrades}
                 bal={bal}
-                onImport={() => fileRef.current?.click()}
                 onNavigate={handleNavigate}
                 onSelect={setDetail}
                 onAnalyze={() => setAnalyzeOpen(true)}
@@ -671,7 +607,6 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
                 onChange={(f) => setFilters((prev) => ({ ...prev, ...f }))}
                 strategies={[...STRATEGIES]}
                 accounts={controlAccounts}
-                onImport={() => fileRef.current?.click()}
                 onExport={handleExport}
                 onSample={handleSample}
                 count={current.length}
@@ -730,7 +665,6 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
                 onChange={(f) => setFilters((prev) => ({ ...prev, ...f }))}
                 strategies={[...STRATEGIES]}
                 accounts={controlAccounts}
-                onImport={() => fileRef.current?.click()}
                 onExport={handleExport}
                 onSample={handleSample}
                 count={current.length}
@@ -750,7 +684,6 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
                 onChange={(f) => setFilters((prev) => ({ ...prev, ...f }))}
                 strategies={[...STRATEGIES]}
                 accounts={controlAccounts}
-                onImport={() => fileRef.current?.click()}
                 onExport={handleExport}
                 onSample={handleSample}
                 count={current.length}
@@ -857,7 +790,6 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onNavigate={handleNavigate}
-        onAddTrade={() => fileRef.current?.click()}
         active={page}
         name={settingsName}
       />
@@ -872,7 +804,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
           syncLabel={syncLabel}
           pageLabel={pageTitle[page]}
           accounts={accountOptions}
-          account={activeAccount}
+          account={effectiveAccount}
           onAccountChange={changeAccount}
         />
 
@@ -891,18 +823,6 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
       </div>
 
       <InsightsDrawer open={insightsOpen} onClose={() => setInsightsOpen(false)} items={ins} />
-
-      <input
-        ref={fileRef}
-        type="file"
-        accept=".csv,text/csv"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) handleFile(f);
-          e.target.value = "";
-        }}
-      />
 
       <div
         className={cn(
@@ -923,20 +843,6 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
           </div>
         )}
       </div>
-
-      {dragging && (
-        <div className="pointer-events-none fixed inset-0 z-[90] flex items-center justify-center bg-surface/70 backdrop-blur-sm">
-          <div className="rounded-2xl border-2 border-dashed border-brand bg-panel px-12 py-10 text-center shadow-2xl">
-            <Upload size={30} className="mx-auto text-brand" />
-            <div className="mt-3 text-sm font-extrabold text-ink">
-              Drop your CSV anywhere to import
-            </div>
-            <div className="mt-1 text-[11px] text-mut">
-              MT5 detailed reports (Positions/Deals/Results), MT5 exports or Nexora journal CSVs
-            </div>
-          </div>
-        </div>
-      )}
 
       {detail && <TradeDetail trade={detail} onClose={() => setDetail(null)} />}
       {analyzeOpen && <AnalyzeLosses trades={trades} open={analyzeOpen} onClose={() => setAnalyzeOpen(false)} />}

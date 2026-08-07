@@ -13,7 +13,6 @@ import {
   BookOpen,
   Wallet,
   ShieldAlert,
-  Plus,
   Settings,
   X,
 } from "lucide-react";
@@ -72,14 +71,12 @@ export default function Sidebar({
   open,
   onClose,
   onNavigate,
-  onAddTrade,
   active,
   name,
 }: {
   open: boolean;
   onClose: () => void;
   onNavigate: (id: PageId) => void;
-  onAddTrade: () => void;
   active: PageId;
   name: string;
 }) {
@@ -129,17 +126,6 @@ export default function Sidebar({
             onClick={onClose}
           >
             <X size={16} />
-          </button>
-        </div>
-
-        {/* add trade */}
-        <div className="px-4">
-          <button
-            onClick={onAddTrade}
-            className="group flex w-full items-center justify-center gap-2 rounded-xl bg-white py-2.5 text-[13px] font-bold text-[#5b21b6] shadow-[0_6px_18px_-6px_rgba(0,0,0,0.5)] transition-all hover:-translate-y-px hover:shadow-[0_10px_24px_-8px_rgba(0,0,0,0.55)] active:translate-y-0 active:scale-[0.98]"
-          >
-            <Plus size={15} strokeWidth={3} className="transition-transform duration-300 group-hover:rotate-90" />
-            Add trade
           </button>
         </div>
 

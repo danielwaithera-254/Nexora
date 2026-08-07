@@ -1,4 +1,4 @@
-import { Filter, Upload, Download, RotateCcw, FileDown } from "lucide-react";
+import { Filter, Download, RotateCcw, FileDown } from "lucide-react";
 import { RANGES, type Filters, type RangeKey } from "../lib/metrics";
 import { Seg, SelectBox } from "./ui";
 
@@ -7,7 +7,6 @@ export default function ControlBar({
   onChange,
   strategies,
   accounts,
-  onImport,
   onExport,
   onSample,
   count,
@@ -16,7 +15,6 @@ export default function ControlBar({
   onChange: (f: Partial<Filters>) => void;
   strategies: string[];
   accounts: string[];
-  onImport: () => void;
   onExport: () => void;
   onSample: () => void;
   count: number;
@@ -67,12 +65,6 @@ export default function ControlBar({
           className="flex items-center gap-1.5 rounded-xl border border-edge bg-panel2 px-2.5 py-[7px] text-[11px] font-bold text-ink transition-all hover:-translate-y-px hover:border-brand/50 hover:text-brand active:translate-y-0 active:scale-95"
         >
           <FileDown size={12} /> Sample
-        </button>
-        <button
-          onClick={onImport}
-          className="flex items-center gap-1.5 rounded-xl border border-edge bg-panel2 px-2.5 py-[7px] text-[11px] font-bold text-ink transition-all hover:-translate-y-px hover:border-brand/50 hover:text-brand active:translate-y-0 active:scale-95"
-        >
-          <Upload size={12} /> Import
         </button>
         <button
           onClick={onExport}
