@@ -519,22 +519,30 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   );
 
   const accountOptions = useMemo(() => {
-    const names = vaultGet("accounts", SEED_ACCOUNTS).map((a) => a.tradeAccount || a.name);
+    const linked = new Set(vaultGet("accounts", SEED_ACCOUNTS).map((a) => a.tradeAccount || a.name));
+    const tags = new Set(trades.map((t) => t.account).filter(Boolean));
+    const counts = new Map<string, number>();
+    for (const t of trades) counts.set(t.account, (counts.get(t.account) ?? 0) + 1);
+    const all = [...new Set([...linked, ...tags])].sort((a, b) => a.localeCompare(b));
     return [
       { value: "All", label: "All accounts" },
-      ...[...new Set(names)].map((n) => ({ value: n, label: n })),
+      ...all.map((n) => ({ value: n, label: `${n} · ${counts.get(n) ?? 0}` })),
     ];
-  }, [accountsVersion, activeAccount]);
+  }, [accountsVersion, activeAccount, trades.length]);
 
   const handleFile = useCallback((file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
-      const { trades, report } = parseImportFile(String(reader.result ?? ""));
+      const stamp = activeAccount === "All" ? undefined : activeAccount;
+      const { trades, report } = parseImportFile(String(reader.result ?? ""), stamp);
       if (trades.length) {
         setTrades((t) => [...t, ...trades]);
         setFilters({ range: "ALL", strategy: "All", account: "All" });
         const acc = report?.accountNum ? ` · account ${report.accountNum}` : "";
-        showToast(`Imported ${trades.length} trades from ${file.name}${acc}`, "gain");
+        showToast(
+          `Imported ${trades.length} trades from ${file.name}${acc}${stamp ? ` into ${stamp}` : ""}`,
+          "gain"
+        );
       } else {
         showToast(
           "No valid rows found — expected an MT5 detailed report, MT5 export or date,symbol,side,pnl… CSV",
@@ -543,7 +551,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
       }
     };
     reader.readAsText(file);
-  }, []);
+  }, [activeAccount]);
 
   /* global drag-and-drop: drop a CSV anywhere in the app to import it */
   const [dragging, setDragging] = useState(false);

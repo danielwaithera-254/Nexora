@@ -49,7 +49,7 @@ export default function TopBar({
           value={account}
           onChange={onAccountChange}
           options={accounts}
-          className="w-[130px] sm:w-[170px]"
+          className="w-[150px] sm:w-[210px]"
         />
         <button
           onClick={onInsights}
