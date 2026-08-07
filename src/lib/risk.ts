@@ -104,8 +104,24 @@ export interface AccountStats {
   losses: number;
 }
 
+/** Tags that book trades to an account: its name, its trade link, and MT5 variants (MT5 reports tag trades `MT5-<accountNum>`). */
+export function accountTagSet(acc: AccountDef): Set<string> {
+  const s = new Set<string>();
+  if (acc.tradeAccount) s.add(acc.tradeAccount);
+  s.add(acc.name);
+  for (const v of [acc.tradeAccount, acc.name]) {
+    if (!v) continue;
+    if (/^\d+$/.test(v)) s.add(`MT5-${v}`);
+    else {
+      const m = v.match(/^MT5-(\d+)$/);
+      if (m) s.add(m[1]);
+    }
+  }
+  return s;
+}
+
 export function accountStats(acc: AccountDef, trades: Trade[]): AccountStats {
-  const tags = new Set([acc.tradeAccount, acc.name].filter(Boolean));
+  const tags = accountTagSet(acc);
   const mine = tags.size ? trades.filter((t) => tags.has(t.account)) : [];
   const today = new Date().toISOString().slice(0, 10);
   const sorted = [...mine].sort((a, b) => a.ts - b.ts);

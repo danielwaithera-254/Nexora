@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Wallet, Plus, Pencil, X, TrendingUp, ShieldAlert, Target, CalendarDays, Upload } from "lucide-react";
 import { Card, CardHead } from "./ui";
 import type { Trade } from "../data/trades";
-import { accountStats, SEED_ACCOUNTS, type AccountDef } from "../lib/risk";
+import { accountStats, accountTagSet, SEED_ACCOUNTS, type AccountDef } from "../lib/risk";
 import { vaultGet, vaultSet } from "../lib/vault";
 import { fmtMoney } from "../lib/format";
 import { cn } from "../utils/cn";
@@ -47,18 +47,15 @@ export default function Accounts({
 
   const orphans = useMemo(() => {
     const linked = new Set<string>();
-    for (const a of accounts) {
-      if (a.tradeAccount) linked.add(a.tradeAccount);
-      linked.add(a.name);
-    }
+    for (const a of accounts) accountTagSet(a).forEach((t) => linked.add(t));
     const m = new Map<string, number>();
     for (const t of trades) if (!linked.has(t.account)) m.set(t.account, (m.get(t.account) ?? 0) + 1);
     return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [accounts, trades]);
 
   const handleDeleteAccount = (acc: AccountDef) => {
-    const tags = [acc.tradeAccount, acc.name].filter((s): s is string => !!s);
-    const n = tags.length ? trades.filter((t) => tags.includes(t.account)).length : 0;
+    const tags = [...accountTagSet(acc)];
+    const n = trades.filter((t) => tags.includes(t.account)).length;
     if (!window.confirm(`Delete "${acc.name}"? This also removes ${n} trade${n === 1 ? "" : "s"} tagged to it.`)) return;
     persist(accounts.filter((a) => a.id !== acc.id));
     if (n > 0) onDeleteTrades(tags);
@@ -206,7 +203,8 @@ export default function Accounts({
               </span>
             </div>
             <p className="mt-1 max-w-xl text-[9.5px] leading-relaxed text-faint">
-              Trades imported outside an account (e.g. via the top bar) keep their raw tag. Link them by setting an account's "Trade account link" to the tag, or remove them below.
+              Older imports kept their raw tag (e.g. <span className="font-bold text-mut">MT5-127447</span>). Link them by
+              setting an account's "Trade account link" to the tag or account number, or remove them below.
             </p>
             <div className="mt-2.5 flex flex-wrap gap-2">
               {orphans.map(([tag, count]) => (

@@ -39,7 +39,7 @@ import Risk from "./components/Risk";
 import Settings from "./components/Settings";
 import { Reveal, Seg } from "./components/ui";
 import { canUseVault, lockVault, migrateLegacy, trySessionUnlock, vaultExists, vaultGet, vaultSet } from "./lib/vault";
-import { generateOpenPositions, SEED_ACCOUNTS } from "./lib/risk";
+import { accountTagSet, generateOpenPositions, SEED_ACCOUNTS } from "./lib/risk";
 import { fmtMoney, fmtPct } from "./lib/format";
 import { cn } from "./utils/cn";
 
@@ -413,7 +413,16 @@ export default function App() {
 }
 
 function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDark: () => void; onLock: () => void }) {
-  const [trades, setTrades] = useState<Trade[]>(() => vaultGet("trades", generateTrades()));
+  const [trades, setTrades] = useState<Trade[]>(() => {
+    const raw = vaultGet<Trade[]>("trades", generateTrades());
+    const seen = new Set<string>();
+    const out: Trade[] = [];
+    for (const t of raw) if (!seen.has(t.id)) {
+      seen.add(t.id);
+      out.push(t);
+    }
+    return out;
+  });
   const [filters, setFilters] = useState<Filters>({ range: "90D", strategy: "All", account: "All" });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
@@ -494,12 +503,15 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   }, []);
 
   const accountOptions = useMemo(() => {
+    const tagToValue = new Map<string, string>();
     const tagSets = new Map<string, Set<string>>();
     for (const a of vaultGet("accounts", SEED_ACCOUNTS)) {
       const value = a.tradeAccount || a.name;
       const set = tagSets.get(value) ?? new Set<string>();
-      if (a.tradeAccount) set.add(a.tradeAccount);
-      set.add(a.name);
+      accountTagSet(a).forEach((t) => {
+        set.add(t);
+        if (!tagToValue.has(t)) tagToValue.set(t, value);
+      });
       tagSets.set(value, set);
     }
     const countFor = (tags: Set<string>) => trades.reduce((s, t) => s + (tags.has(t.account) ? 1 : 0), 0);
@@ -510,9 +522,10 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
       options.push({ value, label: `${value} · ${countFor(tags)}` });
     }
     for (const tag of [...new Set(trades.map((t) => t.account).filter(Boolean))].sort((a, b) => a.localeCompare(b))) {
-      if (seen.has(tag)) continue;
-      seen.add(tag);
-      options.push({ value: tag, label: `${tag} · ${countFor(new Set([tag]))}` });
+      const value = tagToValue.get(tag) ?? tag;
+      if (seen.has(value)) continue;
+      seen.add(value);
+      options.push({ value, label: `${value} · ${countFor(tagSets.get(value) ?? new Set([value]))}` });
     }
     return options;
   }, [accountsVersion, activeAccount, trades.length]);
@@ -526,7 +539,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
     if (!effectiveAccount) return trades;
     const accounts = vaultGet("accounts", SEED_ACCOUNTS);
     const acc = accounts.find((a) => (a.tradeAccount || a.name) === effectiveAccount);
-    const tags = acc ? new Set([acc.tradeAccount, acc.name].filter(Boolean)) : new Set([effectiveAccount]);
+    const tags = acc ? accountTagSet(acc) : new Set([effectiveAccount]);
     return trades.filter((t) => tags.has(t.account));
   }, [trades, effectiveAccount, accountsVersion]);
   const { current, previous } = useMemo(() => splitByFilters(scopedTrades, filters), [scopedTrades, filters]);
