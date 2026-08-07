@@ -20,11 +20,13 @@ export default function Accounts({
   onImportTrades,
   onAccountsChanged,
   onRetagTrades,
+  onDeleteTrades,
 }: {
   trades: Trade[];
   onImportTrades: (list: Trade[], accountName: string, sourceName: string) => void;
   onAccountsChanged: () => void;
   onRetagTrades: (from: string, to: string) => void;
+  onDeleteTrades: (tags: string[]) => void;
 }) {
   const [accounts, setAccounts] = useState<AccountDef[]>(() => vaultGet("accounts", SEED_ACCOUNTS));
   const [editing, setEditing] = useState<AccountDef | null>(null);
@@ -37,6 +39,26 @@ export default function Accounts({
     const settings = vaultGet<{ name?: string; customAccounts?: boolean }>("settings", {});
     vaultSet("settings", { ...settings, customAccounts: true });
     onAccountsChanged();
+  };
+
+  const orphans = useMemo(() => {
+    const linked = new Set<string>();
+    for (const a of accounts) {
+      if (a.tradeAccount) linked.add(a.tradeAccount);
+      linked.add(a.name);
+    }
+    const m = new Map<string, number>();
+    for (const t of trades) if (!linked.has(t.account)) m.set(t.account, (m.get(t.account) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [accounts, trades]);
+
+  const handleDeleteAccount = (acc: AccountDef) => {
+    const tags = [acc.tradeAccount, acc.name].filter((s): s is string => !!s);
+    const n = tags.length ? trades.filter((t) => tags.includes(t.account)).length : 0;
+    if (!window.confirm(`Delete "${acc.name}"? This also removes ${n} trade${n === 1 ? "" : "s"} tagged to it.`)) return;
+    persist(accounts.filter((a) => a.id !== acc.id));
+    if (n > 0) onDeleteTrades(tags);
+    setEditing(null);
   };
 
   const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -170,6 +192,42 @@ export default function Accounts({
           className="hidden"
           onChange={onFile}
         />
+
+        {orphans.length > 0 && (
+          <div className="border-t border-edge px-4 py-4 sm:px-5">
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-mut">Unassigned trade tags</p>
+              <span className="rounded-md bg-panel2 px-1.5 py-0.5 text-[8.5px] font-extrabold uppercase tracking-wider text-faint">
+                not linked to any account
+              </span>
+            </div>
+            <p className="mt-1 max-w-xl text-[9.5px] leading-relaxed text-faint">
+              Trades imported outside an account (e.g. via the top bar) keep their raw tag. Link them by setting an account's "Trade account link" to the tag, or remove them below.
+            </p>
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              {orphans.map(([tag, count]) => (
+                <div
+                  key={tag}
+                  className="flex items-center gap-2 rounded-xl border border-edge bg-panel2 pl-3 pr-1.5 py-1.5"
+                >
+                  <span className="text-[10.5px] font-bold text-mut">{tag}</span>
+                  <span className="tnum text-[9.5px] font-semibold text-faint">{count} trade{count === 1 ? "" : "s"}</span>
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Remove ${count} trade${count === 1 ? "" : "s"} tagged "${tag}"?`)) {
+                        onDeleteTrades([tag]);
+                      }
+                    }}
+                    className="rounded-lg p-1 text-faint transition-colors hover:bg-loss-soft hover:text-loss"
+                    aria-label={`Remove trades tagged ${tag}`}
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </Card>
 
       {editing && (
@@ -186,10 +244,7 @@ export default function Accounts({
             persist(exists ? accounts.map((a) => (a.id === next.id ? next : a)) : [...accounts, next]);
             setEditing(null);
           }}
-          onDelete={(id) => {
-            if (window.confirm("Delete this account?")) persist(accounts.filter((a) => a.id !== id));
-            setEditing(null);
-          }}
+          onDelete={handleDeleteAccount}
           onCancel={() => setEditing(null)}
         />
       )}
@@ -261,7 +316,7 @@ function AccountEditor({
 }: {
   acc: AccountDef;
   onSave: (a: AccountDef) => void;
-  onDelete: (id: string) => void;
+  onDelete: (acc: AccountDef) => void;
   onCancel: () => void;
 }) {
   const [f, setF] = useState({
@@ -311,7 +366,7 @@ function AccountEditor({
 
         <div className="flex items-center gap-2 border-t border-edge px-5 py-3.5">
           <button
-            onClick={() => onDelete(acc.id)}
+            onClick={() => onDelete(acc)}
             className="rounded-xl border border-loss/30 bg-loss-soft px-3.5 py-2 text-[11px] font-bold text-loss transition-all hover:bg-loss hover:text-white"
           >
             Delete

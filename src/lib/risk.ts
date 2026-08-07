@@ -105,7 +105,8 @@ export interface AccountStats {
 }
 
 export function accountStats(acc: AccountDef, trades: Trade[]): AccountStats {
-  const mine = acc.tradeAccount ? trades.filter((t) => t.account === acc.tradeAccount) : [];
+  const tags = new Set([acc.tradeAccount, acc.name].filter(Boolean));
+  const mine = tags.size ? trades.filter((t) => tags.has(t.account)) : [];
   const today = new Date().toISOString().slice(0, 10);
   const sorted = [...mine].sort((a, b) => a.ts - b.ts);
   let totalPnl = 0;

@@ -484,6 +484,17 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
     }
   }, []);
 
+  const deleteTrades = useCallback((tags: string[]) => {
+    const del = new Set(tags);
+    setTrades((prev) => prev.filter((t) => !del.has(t.account)));
+    const settings = vaultGet<{ name?: string; activeAccount?: string }>("settings", {});
+    if (settings.activeAccount && del.has(settings.activeAccount)) {
+      setActiveAccount("All");
+      vaultSet("settings", { ...settings, activeAccount: "All" });
+    }
+    showToast(`Removed trades tagged ${tags.join(", ")}`, "brand");
+  }, []);
+
   const scopedTrades = useMemo(() => {
     if (activeAccount === "All") return trades;
     const accounts = vaultGet("accounts", SEED_ACCOUNTS);
@@ -787,10 +798,11 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
         return (
           <Reveal>
             <Accounts
-              trades={scopedTrades}
+              trades={trades}
               onImportTrades={importTrades}
               onAccountsChanged={() => setAccountsVersion((v) => v + 1)}
               onRetagTrades={retagTrades}
+              onDeleteTrades={deleteTrades}
             />
           </Reveal>
         );
