@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { BarChart3, TrendingUp, TrendingDown, Trophy } from "lucide-react";
-import { Card, CardHead, Seg } from "./ui";
+import { BarChart3, TrendingUp, TrendingDown, Trophy, Medal, Frown } from "lucide-react";
+import { Card, CardHead, Seg, SelectBox } from "./ui";
 import type { Trade } from "../data/trades";
 import { computeKpis } from "../lib/metrics";
+import { loadReviews } from "../lib/tradetools";
 import { cn } from "../utils/cn";
 
 interface Row {
@@ -105,6 +106,83 @@ export default function Reports({ trades }: { trades: Trade[] }) {
     return dd;
   }, [trades]);
 
+  const summarize = (list: Trade[]) => {
+    const dims = ["session", "strategy", "side"] as const;
+    const m = new Map<string, { r: number; pnl: number }>();
+    for (const dim of dims) {
+      const seen = new Map<string, { r: number; pnl: number }>();
+      for (const t of list) {
+        const e = seen.get(t[dim]) ?? { r: 0, pnl: 0 };
+        e.r += t.r;
+        e.pnl += t.pnl;
+        seen.set(t[dim], e);
+      }
+      for (const [key, e] of seen) m.set(key, e);
+    }
+    return [...m.entries()].map(([key, e]) => ({ key, ...e })).sort((a, b) => b.r - a.r);
+  };
+
+  const tagSummary = (list: Trade[]) => {
+    const reviews = loadReviews();
+    const m = new Map<string, { r: number; pnl: number }>();
+    for (const t of list) {
+      const rev = reviews[t.id];
+      if (!rev?.mistakeTags?.length) continue;
+      for (const tag of rev.mistakeTags) {
+        const e = m.get(tag) ?? { r: 0, pnl: 0 };
+        e.r += t.r;
+        e.pnl += t.pnl;
+        m.set(tag, e);
+      }
+    }
+    return [...m.entries()].map(([key, e]) => ({ key, ...e })).sort((a, b) => a.r - b.r);
+  };
+
+  const conds = useMemo(() => summarize(trades), [trades]);
+  const bestConds = conds.filter((c) => c.pnl > 0).slice(0, 3);
+  const weakConds = useMemo(
+    () =>
+      [...summarize(trades), ...tagSummary(trades)]
+        .filter((c) => c.pnl < 0)
+        .sort((a, b) => a.r - b.r)
+        .slice(0, 3),
+    [trades]
+  );
+
+  const [market, setMarket] = useState("All");
+  const markets = useMemo(() => [...new Set(trades.map((t) => t.symbol))].sort(), [trades]);
+  const mktTrades = useMemo(
+    () => (market === "All" ? trades : trades.filter((t) => t.symbol === market)),
+    [trades, market]
+  );
+  const mk = useMemo(() => computeKpis(mktTrades), [mktTrades]);
+  const mktRs = useMemo(() => {
+    let wr = 0;
+    let lr = 0;
+    let wins = 0;
+    let losses = 0;
+    for (const t of mktTrades) {
+      if (t.pnl > 0) {
+        wr += t.r;
+        wins++;
+      } else {
+        lr += t.r;
+        losses++;
+      }
+    }
+    return { avgWinR: wins ? wr / wins : 0, avgLossR: losses ? lr / losses : 0 };
+  }, [mktTrades]);
+  const mktConds = useMemo(() => summarize(mktTrades), [mktTrades]);
+  const mktBest = mktConds.filter((c) => c.pnl > 0).slice(0, 3);
+  const mktWeak = useMemo(
+    () =>
+      [...summarize(mktTrades), ...tagSummary(mktTrades)]
+        .filter((c) => c.pnl < 0)
+        .sort((a, b) => a.r - b.r)
+        .slice(0, 3),
+    [mktTrades]
+  );
+
   return (
     <div className="space-y-4">
       <Card>
@@ -121,6 +199,49 @@ export default function Reports({ trades }: { trades: Trade[] }) {
           <Kpi label="Avg Win" v={fmt(k.avgWin)} tone="gain" />
           <Kpi label="Avg Loss" v={fmt(-k.avgLoss)} tone="loss" />
           <Kpi label="Max Drawdown" v={fmt(maxDD)} tone={maxDD < 0 ? "loss" : undefined} />
+        </div>
+      </Card>
+
+      {/* best & worst */}
+      <Card>
+        <CardHead
+          title="Best & Worst"
+          info="Where your edge is strongest — and the habits quietly costing you money."
+          icon={<Trophy size={14} />}
+        />
+        <div className="grid grid-cols-1 gap-2 px-4 pb-4 sm:grid-cols-2 sm:px-5">
+          <div className="rounded-xl border border-edge bg-panel2 p-3">
+            <p className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-faint">
+              <Medal size={11} className="text-gain" /> Best conditions
+            </p>
+            <ul className="mt-2 space-y-1.5">
+              {bestConds.length === 0 && (
+                <li className="text-[10.5px] font-bold text-faint">Not enough profitable conditions yet — keep journaling.</li>
+              )}
+              {bestConds.map((c) => (
+                <li key={c.key} className="flex items-center justify-between text-[11.5px] font-bold">
+                  <span className="truncate text-ink">{c.key}</span>
+                  <span className="tnum text-gain">{fmt(c.pnl)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-xl border border-edge bg-panel2 p-3">
+            <p className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-faint">
+              <Frown size={11} className="text-loss" /> Weakest behavior
+            </p>
+            <ul className="mt-2 space-y-1.5">
+              {weakConds.length === 0 && (
+                <li className="text-[10.5px] font-bold text-faint">No recurring negative patterns — clean slate.</li>
+              )}
+              {weakConds.map((c) => (
+                <li key={c.key} className="flex items-center justify-between text-[11.5px] font-bold">
+                  <span className="truncate text-ink">{c.key}</span>
+                  <span className="tnum text-loss">{fmt(c.pnl)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </Card>
 
@@ -188,6 +309,63 @@ export default function Reports({ trades }: { trades: Trade[] }) {
               </div>
             );
           })}
+        </div>
+      </Card>
+
+      {/* market analyzer */}
+      <Card>
+        <CardHead
+          title={market === "All" ? "Market Analyzer" : `${market} Analysis`}
+          info="Pick a market to dissect its conditions — sessions, strategies and sides that print R, and the habits that bleed it."
+          icon={<BarChart3 size={14} />}
+          right={
+            <SelectBox
+              value={market}
+              onChange={setMarket}
+              options={[{ value: "All", label: "All markets" }, ...markets.map((s) => ({ value: s, label: s }))]}
+            />
+          }
+        />
+        <div className="grid grid-cols-2 gap-2 px-4 pb-2 sm:grid-cols-5 sm:px-5">
+          <Kpi label="Trades" v={`${mktTrades.length}`} />
+          <Kpi label="Win Rate" v={`${mk.winRate.toFixed(1)}%`} />
+          <Kpi label="Profit Factor" v={mk.pf.toFixed(2)} tone={mk.pf >= 1.5 ? "gain" : "loss"} />
+          <Kpi label="Avg Win (R)" v={`+${mktRs.avgWinR.toFixed(2)}R`} tone="gain" />
+          <Kpi label="Avg Loss (R)" v={`${mktRs.avgLossR.toFixed(2)}R`} tone="loss" />
+        </div>
+        <div className="grid grid-cols-1 gap-2 px-4 pb-4 sm:grid-cols-2 sm:px-5">
+          <div className="rounded-xl border border-edge bg-panel2 p-3">
+            <p className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-faint">
+              <Medal size={11} className="text-gain" /> Best conditions
+            </p>
+            <ul className="mt-2 space-y-1.5">
+              {mktBest.length === 0 && (
+                <li className="text-[10.5px] font-bold text-faint">No positive conditions here yet.</li>
+              )}
+              {mktBest.map((c) => (
+                <li key={c.key} className="flex items-center justify-between text-[11.5px] font-bold">
+                  <span className="truncate text-ink">{c.key}</span>
+                  <span className="tnum text-gain">{fmt(c.pnl)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-xl border border-edge bg-panel2 p-3">
+            <p className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-faint">
+              <Frown size={11} className="text-loss" /> Weak conditions
+            </p>
+            <ul className="mt-2 space-y-1.5">
+              {mktWeak.length === 0 && (
+                <li className="text-[10.5px] font-bold text-faint">Nothing dragging this market down.</li>
+              )}
+              {mktWeak.map((c) => (
+                <li key={c.key} className="flex items-center justify-between text-[11.5px] font-bold">
+                  <span className="truncate text-ink">{c.key}</span>
+                  <span className="tnum text-loss">{fmt(c.pnl)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </Card>
     </div>

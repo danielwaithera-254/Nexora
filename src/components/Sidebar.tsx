@@ -10,6 +10,9 @@ import {
   GraduationCap,
   Images,
   BarChart3,
+  BookOpen,
+  Wallet,
+  ShieldAlert,
   Plus,
   Settings,
   X,
@@ -27,7 +30,11 @@ export type PageId =
   | "playbooks"
   | "progress"
   | "replay"
-  | "resources";
+  | "resources"
+  | "calendar"
+  | "accounts"
+  | "risk"
+  | "settings";
 
 interface NavItem {
   id: PageId;
@@ -38,17 +45,28 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { id: "dashboard", name: "Dashboard", icon: LayoutDashboard },
-  { id: "journal", name: "Daily Journal", icon: CalendarDays },
   { id: "trades", name: "Trades", icon: CandlestickChart },
-  { id: "mt5", name: "MT5 Gateway", icon: RadioTower, badge: "LIVE" },
-  { id: "notebook", name: "Notebook", icon: NotebookPen, badge: "NEW" },
-  { id: "attachments", name: "Attachments", icon: Images, badge: "NEW" },
-  { id: "reports", name: "Reports", icon: BarChart3, badge: "NEW" },
-  { id: "playbooks", name: "Playbooks", icon: Layers, badge: "NEW" },
-  { id: "progress", name: "Progress Tracker", icon: TrendingUp },
+  { id: "calendar", name: "Calendar", icon: CalendarDays },
+  { id: "reports", name: "Analytics", icon: BarChart3 },
+  { id: "playbooks", name: "Playbooks", icon: Layers },
+  { id: "journal", name: "Journal", icon: BookOpen },
+  { id: "notebook", name: "Notebook", icon: NotebookPen },
+  { id: "attachments", name: "Attachments", icon: Images },
+  { id: "accounts", name: "Accounts", icon: Wallet },
+  { id: "risk", name: "Risk", icon: ShieldAlert },
   { id: "replay", name: "Trade Replay", icon: RotateCw, badge: "BETA" },
-  { id: "resources", name: "Resource Center", icon: GraduationCap },
+  { id: "progress", name: "Progress", icon: TrendingUp },
+  { id: "mt5", name: "MT5 Gateway", icon: RadioTower, badge: "LIVE" },
+  { id: "resources", name: "Resources", icon: GraduationCap },
 ];
+
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 
 export default function Sidebar({
   open,
@@ -56,12 +74,14 @@ export default function Sidebar({
   onNavigate,
   onAddTrade,
   active,
+  name,
 }: {
   open: boolean;
   onClose: () => void;
   onNavigate: (id: PageId) => void;
   onAddTrade: () => void;
   active: PageId;
+  name: string;
 }) {
   return (
     <>
@@ -73,7 +93,6 @@ export default function Sidebar({
         onClick={onClose}
       />
 
-      {/* Single clean top-to-bottom purple ramp — no competing overlays. */}
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 flex w-[240px] flex-col text-white transition-transform duration-300",
@@ -102,7 +121,7 @@ export default function Sidebar({
               Nex<span className="text-[#d8b4fe]">ora</span>
             </p>
             <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.18em] text-white/55">
-              Trading Journal
+              Private Trading Journal
             </p>
           </div>
           <button
@@ -171,22 +190,39 @@ export default function Sidebar({
           })}
         </nav>
 
-        {/* footer */}
-        <div className="border-t border-white/12 px-4 py-4">
-          <div className="flex items-center gap-3">
+        {/* settings */}
+        <div className="border-t border-white/12 px-3 py-3">
+          <button
+            onClick={() => {
+              onNavigate("settings");
+              onClose();
+            }}
+            className={cn(
+              "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[12.5px] font-semibold transition-all duration-200",
+              active === "settings"
+                ? "bg-white text-[#5b21b6] shadow-[0_6px_16px_-6px_rgba(0,0,0,0.45)]"
+                : "text-white/70 hover:bg-white/[0.13] hover:text-white"
+            )}
+          >
+            <Settings
+              size={15}
+              className={cn(
+                "shrink-0 transition-transform duration-300",
+                active === "settings" ? "text-[#7c3aed]" : "text-white/50 group-hover:rotate-45 group-hover:text-white"
+              )}
+            />
+            <span className="truncate">Settings</span>
+          </button>
+
+          {/* footer user */}
+          <div className="mt-3 flex items-center gap-3 border-t border-white/12 px-1 pt-3">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-[11px] font-extrabold text-[#4c1d95]">
-              JT
+              {initials(name)}
             </span>
             <div className="min-w-0">
-              <p className="truncate text-[12px] font-bold text-white">Jordan Tate</p>
-              <p className="text-[10px] text-white/55">Funded · 3 accounts</p>
+              <p className="truncate text-[12px] font-bold text-white">{name}</p>
+              <p className="text-[10px] text-white/55">Private vault · encrypted</p>
             </div>
-            <button
-              className="ml-auto rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
-              aria-label="Settings"
-            >
-              <Settings size={14} />
-            </button>
           </div>
         </div>
       </aside>

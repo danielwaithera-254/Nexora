@@ -192,3 +192,26 @@ export function migrateLegacy() {
   }
   if (changed) persistNow();
 }
+
+/** Re-encrypt the vault under a new passphrase (verifies the old one first). */
+export async function changePassphrase(oldPass: string, newPass: string, remember: boolean): Promise<boolean> {
+  const blob = readBlob();
+  if (!blob || newPass.length < 8) return false;
+  try {
+    const oldKey = await derive(oldPass, fromB64(blob.salt));
+    const parsed = await decryptState(oldKey, blob);
+    salt = crypto.getRandomValues(new Uint8Array(SALT_LEN));
+    key = await derive(newPass, salt);
+    state = parsed;
+    persistNow();
+    if (remember) await rememberKey(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Plaintext copy of the decrypted state, for a local backup export. */
+export function exportState(): string {
+  return JSON.stringify(state, null, 2);
+}

@@ -25,12 +25,11 @@ import { Card, CardHead } from "./ui";
 import { cn } from "../utils/cn";
 
 export const ATTACHMENT_CATEGORIES = [
-  "Pre-Trade",
+  "HTF",
+  "Setup",
   "Entry",
-  "During Trade",
+  "Management",
   "Exit",
-  "Post-Trade",
-  "Analysis",
   "Other",
 ] as const;
 export type AttachmentCategory = (typeof ATTACHMENT_CATEGORIES)[number];
@@ -50,12 +49,11 @@ export interface Attachment {
 const MAX_SIZE = 10 * 1024 * 1024;
 
 const CAT_STYLE: Record<AttachmentCategory, string> = {
-  "Pre-Trade": "bg-brand-soft text-brand ring-brand/20",
+  HTF: "bg-brand-soft text-brand ring-brand/20",
+  Setup: "bg-sky-500/10 text-sky-600 ring-sky-500/25",
   Entry: "bg-gain-soft text-gain ring-gain/20",
-  "During Trade": "bg-warn-soft text-warn ring-warn/20",
+  Management: "bg-warn-soft text-warn ring-warn/20",
   Exit: "bg-loss-soft text-loss ring-loss/20",
-  "Post-Trade": "bg-brand-soft text-brand ring-brand/20",
-  Analysis: "bg-brand-soft text-brand ring-brand/20",
   Other: "bg-panel2 text-mut ring-edge",
 };
 
@@ -535,7 +533,7 @@ export default function Attachments() {
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5 pl-[18px]">
-                            <span className={cn("rounded-md px-1.5 py-0.5 text-[8.5px] font-extrabold uppercase tracking-wide ring-1", CAT_STYLE[a.category])}>
+                            <span className={cn("rounded-md px-1.5 py-0.5 text-[8.5px] font-extrabold uppercase tracking-wide ring-1", CAT_STYLE[a.category] ?? "bg-panel2 text-mut ring-edge")}>
                               {a.category}
                             </span>
                             <span className="ml-auto text-[8.5px] font-bold text-faint">{fmtWhen(a.addedAt)}</span>
@@ -557,7 +555,7 @@ export default function Attachments() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <p className="truncate text-[11px] font-bold text-ink">{a.name}</p>
-                            <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-[8.5px] font-extrabold uppercase tracking-wide ring-1", CAT_STYLE[a.category])}>
+                            <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-[8.5px] font-extrabold uppercase tracking-wide ring-1", CAT_STYLE[a.category] ?? "bg-panel2 text-mut ring-edge")}>
                               {a.category}
                             </span>
                           </div>

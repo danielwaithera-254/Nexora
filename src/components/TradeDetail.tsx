@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   BarChart3,
+  Brain,
   CheckCircle2,
   ClipboardCheck,
   Clock,
@@ -32,6 +33,7 @@ import {
   MISTAKE_TAGS,
   pathToCandles,
   pnlFromPath,
+  PSYCH_EMOTIONS,
   saveDailyNotes,
   saveReview,
   saveTradeAttachments,
@@ -43,7 +45,7 @@ import {
 } from "../lib/tradetools";
 import { cn } from "../utils/cn";
 
-type TabId = "stats" | "playbook" | "execution" | "attachments";
+type TabId = "stats" | "playbook" | "execution" | "psychology" | "attachments";
 
 const fmtMoney = (v: number) => `${v >= 0 ? "+" : "-"}$${Math.abs(v).toLocaleString()}`;
 
@@ -139,6 +141,7 @@ export default function TradeDetail({ trade, onClose }: { trade: Trade; onClose:
             { key: "stats", label: "Stats" },
             { key: "playbook", label: "Playbook" },
             { key: "execution", label: "Execution" },
+            { key: "psychology", label: "Psychology" },
             { key: "attachments", label: "Attachments" },
           ]}
           value={tab}
@@ -172,6 +175,14 @@ export default function TradeDetail({ trade, onClose }: { trade: Trade; onClose:
             onSelectPlaybook={(id) => patchReview({ playbookId: id, checks: {}, whyMissed: {} })}
             onToggle={toggleRule}
             onWhyMissed={(ruleId, v) => patchReview({ whyMissed: { ...review.whyMissed, [ruleId]: v } })}
+          />
+        )}
+
+        {tab === "psychology" && (
+          <PsychTab
+            review={review}
+            onPsych={(patch) => patchReview({ psych: { ...review.psych, ...patch } })}
+            onFollowed={(v) => patchReview({ psych: { ...review.psych, followedPlan: v } })}
             onToggleTag={(tag) =>
               patchReview({
                 mistakeTags: review.mistakeTags.includes(tag)
@@ -214,7 +225,7 @@ export default function TradeDetail({ trade, onClose }: { trade: Trade; onClose:
 }
 
 function blankReview(): TradeReview {
-  return { checks: {}, whyMissed: {}, mistakeTags: [], notes: {} };
+  return { checks: {}, whyMissed: {}, mistakeTags: [], notes: {}, psych: {} };
 }
 
 function Kpi({ label, value, tone }: { label: string; value: string; tone?: "gain" | "loss" }) {
@@ -383,14 +394,12 @@ function PlaybookTab({
   onSelectPlaybook,
   onToggle,
   onWhyMissed,
-  onToggleTag,
 }: {
   playbooks: Playbook[];
   review: TradeReview;
   onSelectPlaybook: (id: string) => void;
   onToggle: (ruleId: string) => void;
   onWhyMissed: (ruleId: string, v: string) => void;
-  onToggleTag: (tag: string) => void;
 }) {
   const pb = playbooks.find((p) => p.id === review.playbookId) ?? playbooks[0];
   const adh = adherencePercent(pb?.rules ?? [], review.checks);
@@ -478,9 +487,92 @@ function PlaybookTab({
         );
       })}
 
-      <div>
-        <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-mut">Mistake tags</span>
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
+      <p className="text-[9.5px] text-faint">
+        Answers are saved per trade and feed the Playbooks page — spot which rules your losing trades keep breaking. Tag the psychological mistakes in the Psychology tab.
+      </p>
+    </div>
+  );
+}
+
+/* ---------------- psychology tab ---------------- */
+
+function PsychTab({
+  review,
+  onPsych,
+  onFollowed,
+  onToggleTag,
+}: {
+  review: TradeReview;
+  onPsych: (patch: { before?: string; during?: string; after?: string }) => void;
+  onFollowed: (v: boolean) => void;
+  onToggleTag: (tag: string) => void;
+}) {
+  const psych = review.psych ?? {};
+  const rows: Array<{ key: "before" | "during" | "after"; label: string; hint: string }> = [
+    { key: "before", label: "Before trade", hint: "What state did you enter in?" },
+    { key: "during", label: "During trade", hint: "What were you feeling while in it?" },
+    { key: "after", label: "After trade", hint: "How did you feel when it closed?" },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {rows.map((r) => (
+          <div key={r.key} className="rounded-xl border border-edge bg-panel2 p-3.5">
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-mut">{r.label}</p>
+            <p className="mt-0.5 text-[9.5px] text-faint">{r.hint}</p>
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              {PSYCH_EMOTIONS.map((e) => {
+                const on = psych[r.key] === e;
+                return (
+                  <button
+                    key={e}
+                    onClick={() => onPsych({ [r.key]: on ? undefined : e })}
+                    className={cn(
+                      "rounded-lg px-2.5 py-1 text-[10px] font-bold ring-1 transition-all",
+                      on ? "bg-brand text-white ring-brand" : "bg-panel text-mut ring-edge hover:text-brand"
+                    )}
+                  >
+                    {e}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-edge bg-panel2 p-3.5">
+        <p className="text-[10px] font-extrabold uppercase tracking-wider text-mut">Did you follow your plan?</p>
+        <div className="mt-2.5 flex gap-2">
+          {[true, false].map((v) => (
+            <button
+              key={String(v)}
+              onClick={() => onFollowed(v)}
+              className={cn(
+                "rounded-xl px-4 py-2 text-[11px] font-extrabold ring-1 transition-all",
+                psych.followedPlan === v
+                  ? v
+                    ? "bg-gain text-white ring-gain"
+                    : "bg-loss text-white ring-loss"
+                  : "bg-panel text-mut ring-edge hover:text-ink"
+              )}
+            >
+              {v ? "Yes, I followed my plan" : "No, I deviated"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-edge bg-panel2 p-3.5">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-extrabold uppercase tracking-wider text-mut">Mistakes I made</span>
+          <Brain size={13} className="text-brand" />
+        </div>
+        <p className="mt-0.5 text-[9.5px] text-faint">
+          Be honest — these tags power the "Why did I lose?" analysis and your pattern feedback.
+        </p>
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
           {MISTAKE_TAGS.map((tag) => {
             const on = review.mistakeTags.includes(tag);
             return (
@@ -489,7 +581,7 @@ function PlaybookTab({
                 onClick={() => onToggleTag(tag)}
                 className={cn(
                   "rounded-lg px-2.5 py-1 text-[10px] font-bold ring-1 transition-all",
-                  on ? "bg-loss-soft text-loss ring-loss/25" : "bg-panel2 text-mut ring-edge hover:text-brand"
+                  on ? "bg-loss-soft text-loss ring-loss/25" : "bg-panel text-mut ring-edge hover:text-brand"
                 )}
               >
                 {tag}
@@ -500,7 +592,7 @@ function PlaybookTab({
       </div>
 
       <p className="text-[9.5px] text-faint">
-        Answers are saved per trade and feed the Playbooks page — spot which rules your losing trades keep breaking.
+        Saved per trade. After 50+ tagged trades, Nexora surfaces your most recurring losing pattern.
       </p>
     </div>
   );

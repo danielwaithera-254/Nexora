@@ -17,9 +17,14 @@ export default function TradesTable({
   const [q, setQ] = useState("");
   const [side, setSide] = useState("All");
   const [result, setResult] = useState("All");
+  const [market, setMarket] = useState("All");
+  const [session, setSession] = useState("All");
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [limit, setLimit] = useState(10);
+
+  const markets = useMemo(() => ["All", ...new Set(trades.map((t) => t.symbol))].sort(), [trades]);
+  const sessions = useMemo(() => ["All", ...new Set(trades.map((t) => t.session))], [trades]);
 
   const rows = useMemo(() => {
     let list = trades.filter((t) => {
@@ -35,7 +40,9 @@ export default function TradesTable({
         (result === "Wins" && t.pnl > 0) ||
         (result === "Losses" && t.pnl < 0) ||
         (result === "Breakeven" && t.pnl === 0);
-      return hit && sOk && rOk;
+      const mOk = market === "All" || t.symbol === market;
+      const seOk = session === "All" || t.session === session;
+      return hit && sOk && rOk && mOk && seOk;
     });
     const dir = sortDir === "asc" ? 1 : -1;
     list = [...list].sort((a, b) => {
@@ -44,7 +51,7 @@ export default function TradesTable({
       return ((a[sortKey] as number) - (b[sortKey] as number)) * dir;
     });
     return list;
-  }, [trades, q, side, result, sortKey, sortDir]);
+  }, [trades, q, side, result, market, session, sortKey, sortDir]);
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -99,6 +106,22 @@ export default function TradesTable({
                 className="w-40 rounded-xl border border-edge bg-panel2 py-[7px] pl-7 pr-2 text-[11px] font-semibold text-ink outline-none transition-all placeholder:text-faint focus:w-52 focus:border-brand sm:w-48"
               />
             </div>
+            <SelectBox
+              value={market}
+              onChange={(v) => {
+                setMarket(v);
+                setLimit(10);
+              }}
+              options={markets.map((m) => ({ value: m, label: m === "All" ? "All markets" : m }))}
+            />
+            <SelectBox
+              value={session}
+              onChange={(v) => {
+                setSession(v);
+                setLimit(10);
+              }}
+              options={sessions.map((s) => ({ value: s, label: s === "All" ? "All sessions" : s }))}
+            />
             <SelectBox
               value={side}
               onChange={(v) => setSide(v)}

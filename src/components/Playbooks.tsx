@@ -2,7 +2,15 @@ import { useMemo, useState } from "react";
 import { Layers, Plus, Pencil, Trash2, X, CheckCircle2, ShieldCheck } from "lucide-react";
 import { Card, CardHead } from "./ui";
 import type { Trade } from "../data/trades";
-import { adherencePercent, loadPlaybooks, loadReviews, savePlaybooks, type Playbook } from "../lib/tradetools";
+import {
+  adherencePercent,
+  loadPlaybooks,
+  loadReviews,
+  PLAYBOOK_COLORS,
+  savePlaybooks,
+  type Playbook,
+  type PlaybookColor,
+} from "../lib/tradetools";
 import { cn } from "../utils/cn";
 
 let uid = 0;
@@ -41,7 +49,7 @@ export default function Playbooks({ trades }: { trades: Trade[] }) {
   }, [trades, reviews, playbooks]);
 
   const addPlaybook = () => {
-    const pb: Playbook = { id: newId("pb"), name: "New Strategy", rules: [{ id: newId("r"), text: "Rule 1" }] };
+    const pb: Playbook = { id: newId("pb"), name: "New Strategy", color: "purple", rules: [{ id: newId("r"), text: "Rule 1" }] };
     const next = [...playbooks, pb];
     persist(next);
     setSelectedId(pb.id);
@@ -82,6 +90,7 @@ export default function Playbooks({ trades }: { trades: Trade[] }) {
                   )}
                 >
                   <div className="flex items-center gap-2">
+                    <span className={cn("h-2 w-2 shrink-0 rounded-full", PLAYBOOK_COLORS[pb.color ?? "purple"].dot)} />
                     <p className="min-w-0 flex-1 truncate text-[12px] font-extrabold text-ink">{pb.name}</p>
                     <span className="rounded-md bg-panel px-1.5 py-0.5 text-[8.5px] font-extrabold uppercase tracking-wide text-faint">
                       {pb.rules.length} rules
@@ -110,8 +119,9 @@ export default function Playbooks({ trades }: { trades: Trade[] }) {
           {/* selected playbook details */}
           {selected ? (
             <div className="lg:col-span-8">
-              <div className="rounded-xl border border-edge bg-panel2 p-4">
+              <div className={cn("rounded-xl border bg-panel2 p-4", PLAYBOOK_COLORS[selected.color ?? "purple"].ring)}>
                 <div className="flex items-center gap-2">
+                  <span className={cn("h-2.5 w-2.5 rounded-full", PLAYBOOK_COLORS[selected.color ?? "purple"].dot)} />
                   <h4 className="font-display text-[14px] font-bold text-ink">{selected.name}</h4>
                   <button
                     onClick={() => setEditing({ ...selected, rules: selected.rules.map((r) => ({ ...r })) })}
@@ -186,6 +196,7 @@ export function PlaybookEditor({
   onCancel: () => void;
 }) {
   const [name, setName] = useState(pb.name);
+  const [color, setColor] = useState<PlaybookColor>(pb.color ?? "purple");
   const [rules, setRules] = useState(pb.rules.map((r) => ({ ...r })));
 
   const patchRule = (id: string, text: string) =>
@@ -213,6 +224,26 @@ export function PlaybookEditor({
               placeholder="e.g. Asian Range Breakout"
               className="mt-1 w-full rounded-xl border border-edge bg-panel2 px-3 py-2 text-[11.5px] font-bold text-ink outline-none transition-colors placeholder:text-faint focus:border-brand"
             />
+          </div>
+
+          <div>
+            <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-mut">Color</span>
+            <div className="mt-1.5 flex gap-2">
+              {(Object.keys(PLAYBOOK_COLORS) as PlaybookColor[]).map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setColor(c)}
+                  aria-label={`Color ${c}`}
+                  className={cn(
+                    "grid h-8 w-8 place-items-center rounded-xl ring-2 transition-all",
+                    PLAYBOOK_COLORS[c].dot,
+                    color === c ? "scale-105 ring-brand" : "opacity-45 ring-transparent hover:opacity-80"
+                  )}
+                >
+                  {color === c && <CheckCircle2 size={13} className="text-white" />}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>
@@ -253,7 +284,7 @@ export function PlaybookEditor({
             Cancel
           </button>
           <button
-            onClick={() => onSave({ ...pb, name: name.trim() || pb.name, rules: rules.filter((r) => r.text.trim()) })}
+            onClick={() => onSave({ ...pb, name: name.trim() || pb.name, color, rules: rules.filter((r) => r.text.trim()) })}
             className="brand-gradient ml-auto rounded-xl px-4 py-2 text-[11px] font-bold text-white shadow-sm transition-all hover:shadow-[var(--shadow)] active:scale-95"
           >
             Save

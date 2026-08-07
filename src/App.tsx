@@ -1,5 +1,16 @@
 import { useEffect, useCallback, useMemo, useRef, useState } from "react";
-import { CheckCircle2, AlertTriangle, Info, Upload } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowDownRight,
+  BarChart3,
+  Camera,
+  CheckCircle2,
+  Info,
+  NotebookPen,
+  Plus,
+  Sparkles,
+  Upload,
+} from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import ControlBar from "./components/ControlBar";
@@ -23,8 +34,16 @@ import TradeDetail from "./components/TradeDetail";
 import ComingSoon from "./components/ComingSoon";
 import Mt5Bridge from "./components/Mt5Bridge";
 import Unlock from "./components/Unlock";
+import AnalyzeLosses from "./components/AnalyzeLosses";
+import Accounts from "./components/Accounts";
+import Risk from "./components/Risk";
+import Settings from "./components/Settings";
 import { Reveal } from "./components/ui";
 import { canUseVault, lockVault, migrateLegacy, trySessionUnlock, vaultExists, vaultGet, vaultSet } from "./lib/vault";
+import { generateOpenPositions } from "./lib/risk";
+import { fmtMoney, fmtPct } from "./lib/format";
+import { cn } from "./utils/cn";
+
 import {
   generateTrades,
   parseImportFile,
@@ -47,7 +66,6 @@ import {
   withRisk,
   type Filters,
 } from "./lib/metrics";
-import { cn } from "./utils/cn";
 
 type PageId =
   | "dashboard"
@@ -60,11 +78,264 @@ type PageId =
   | "playbooks"
   | "progress"
   | "replay"
-  | "resources";
+  | "resources"
+  | "calendar"
+  | "accounts"
+  | "risk"
+  | "settings";
 
 interface Toast {
   msg: string;
   tone: "gain" | "loss" | "brand";
+}
+
+/* ------------------- command center (dashboard hero) ------------------- */
+
+const isoToday = () => new Date().toISOString().slice(0, 10);
+
+function CommandCenter({
+  trades,
+  bal,
+  onImport,
+  onNavigate,
+  onSelect,
+  onAnalyze,
+}: {
+  trades: Trade[];
+  bal: { date: string; balance: number }[];
+  onImport: () => void;
+  onNavigate: (id: PageId) => void;
+  onSelect: (t: Trade) => void;
+  onAnalyze: () => void;
+}) {
+  const todays = trades.filter((t) => t.date === isoToday());
+  const tPnl = todays.reduce((s, t) => s + t.pnl, 0);
+  const tWins = todays.filter((t) => t.pnl > 0).length;
+  const tCount = todays.length;
+  const winRate = tCount ? (tWins / tCount) * 100 : 0;
+  const best = todays.reduce<{ pnl: number; symbol: string } | null>(
+    (b, t) => (b === null || t.pnl > b.pnl ? { pnl: t.pnl, symbol: t.symbol } : b),
+    null
+  );
+
+  const bySymbol = useMemo(() => {
+    const m = new Map<string, { pnl: number; count: number }>();
+    for (const t of todays) {
+      const e = m.get(t.symbol) ?? { pnl: 0, count: 0 };
+      e.pnl += t.pnl;
+      e.count++;
+      m.set(t.symbol, e);
+    }
+    return [...m.entries()].map(([symbol, e]) => ({ symbol, ...e })).sort((a, b) => b.pnl - a.pnl);
+  }, [todays.length, tPnl]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const positions = useMemo(() => generateOpenPositions(trades), [trades]);
+
+  const settings = vaultGet<{ name?: string }>("settings", {});
+  const name = settings.name?.trim() || "Daniel";
+  const hour = new Date().getHours();
+  const greet = hour < 5 ? "Up late" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const dateLabel = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const maxPnl = Math.max(1, ...bySymbol.map((s) => Math.abs(s.pnl)));
+
+  return (
+    <div className="space-y-4">
+      {/* greeting */}
+      <div className="rounded-2xl border border-edge bg-panel p-5 sm:p-6">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <h1 className="font-display text-[22px] font-bold tracking-tight text-ink sm:text-[26px]">
+              {greet}, <span className="brand-text">{name}</span>
+            </h1>
+            <p className="mt-1 text-[11px] font-semibold text-mut">{dateLabel}</p>
+          </div>
+          {best && best.pnl > 0 && (
+            <span className="ml-auto hidden items-center gap-1.5 rounded-xl bg-gain-soft px-3 py-2 text-[10.5px] font-extrabold text-gain sm:flex">
+              <Sparkles size={12} /> Best today: {best.symbol} +${best.pnl.toLocaleString()}
+            </span>
+          )}
+        </div>
+
+        {/* today strip */}
+        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <TodayStat
+            label="Today's P&L"
+            value={fmtMoney(tPnl, { sign: true })}
+            tone={tPnl >= 0 ? "gain" : "loss"}
+            sub={tCount ? `${tCount} trade${tCount > 1 ? "s" : ""} today` : "No trades today"}
+          />
+          <TodayStat
+            label="Win rate"
+            value={tCount ? fmtPct(winRate, 0) : "—"}
+            tone={winRate >= 50 ? "gain" : "loss"}
+            sub={`${tWins} wins · ${tCount - tWins} losses`}
+          />
+          <TodayStat
+            label="Trades"
+            value={String(tCount)}
+            tone="brand"
+            sub={tPnl !== 0 ? `avg ${fmtMoney(tCount ? tPnl / tCount : 0, { sign: true })} / trade` : "Flat so far"}
+          />
+        </div>
+      </div>
+
+      {/* equity */}
+      <BalanceCard data={bal} />
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {/* today's performance */}
+        <div className="rounded-2xl border border-edge bg-panel p-5">
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-faint">Today's performance</p>
+          {bySymbol.length === 0 ? (
+            <p className="py-8 text-center text-[11px] font-bold text-faint">No trades today — import a CSV or generate a sample to see your day.</p>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {bySymbol.map((s) => (
+                <div key={s.symbol} className="flex items-center gap-2.5">
+                  <span className="w-16 shrink-0 rounded-md bg-brand-soft px-1.5 py-0.5 text-center font-display text-[11px] font-bold text-brand">
+                    {s.symbol}
+                  </span>
+                  <div className="relative h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-edge">
+                    <div
+                      className={cn("h-full rounded-full", s.pnl >= 0 ? "bg-gain" : "bg-loss")}
+                      style={{ width: `${(Math.abs(s.pnl) / maxPnl) * 100}%`, marginLeft: s.pnl < 0 ? "auto" : undefined }}
+                    />
+                  </div>
+                  <span className={cn("tnum w-16 shrink-0 text-right text-[11.5px] font-bold", s.pnl >= 0 ? "text-gain" : "text-loss")}>
+                    {s.pnl >= 0 ? "+" : "-"}${Math.abs(s.pnl).toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* current positions */}
+        <div className="rounded-2xl border border-edge bg-panel p-5">
+          <div className="flex items-center gap-2">
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-faint">Current positions</p>
+            <span className="ml-auto rounded-md bg-panel2 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-faint">
+              Simulated
+            </span>
+          </div>
+          <div className="mt-3 space-y-2">
+            {positions.map((p, i) => (
+              <div key={i} className="flex items-center gap-3 rounded-xl border border-edge bg-panel2 px-3 py-2.5">
+                <span className={cn("w-14 shrink-0 rounded-md px-1.5 py-0.5 text-center font-display text-[10.5px] font-bold", p.side === "Long" ? "bg-gain-soft text-gain" : "bg-loss-soft text-loss")}>
+                  {p.symbol}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-extrabold uppercase tracking-wide text-mut">{p.side}</p>
+                  <p className="tnum text-[10px] font-semibold text-faint">
+                    Entry {p.entry} · Now {p.current}
+                  </p>
+                </div>
+                <span className={cn("tnum text-right text-[11.5px] font-bold", p.pnl >= 0 ? "text-gain" : "text-loss")}>
+                  {p.pnl >= 0 ? "+" : "-"}${Math.abs(p.pnl).toLocaleString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* today's trades */}
+        <div className="rounded-2xl border border-edge bg-panel p-5">
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-faint">Today's activity</p>
+          {todays.length === 0 ? (
+            <p className="py-8 text-center text-[11px] font-bold text-faint">Nothing closed yet today.</p>
+          ) : (
+            <div className="mt-3 space-y-1">
+              {[...todays].reverse().slice(0, 6).map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => onSelect(t)}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left transition-colors hover:bg-brand-soft/40"
+                >
+                  <span className="w-14 shrink-0 rounded-md bg-brand-soft px-1.5 py-0.5 text-center font-display text-[10.5px] font-bold text-brand">
+                    {t.symbol}
+                  </span>
+                  <span className={cn("w-12 shrink-0 text-[9.5px] font-extrabold uppercase", t.side === "Long" ? "text-gain" : "text-loss")}>
+                    {t.side}
+                  </span>
+                  <span className="tnum ml-auto text-[11px] font-bold text-faint">
+                    {t.r > 0 ? "+" : ""}
+                    {t.r.toFixed(1)}R
+                  </span>
+                  <span className={cn("tnum w-16 shrink-0 text-right text-[11.5px] font-bold", t.pnl >= 0 ? "text-gain" : "text-loss")}>
+                    {fmtMoney(t.pnl, { sign: true })}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* quick actions */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <QuickAction icon={<Plus size={15} />} label="Add trade" hint="Import CSV" onClick={onImport} />
+        <QuickAction icon={<Camera size={15} />} label="Screenshots" hint="Attachments" onClick={() => onNavigate("attachments")} />
+        <QuickAction icon={<NotebookPen size={15} />} label="Journal" hint="Daily notes" onClick={() => onNavigate("journal")} />
+        <QuickAction icon={<BarChart3 size={15} />} label="Analyze" hint="Reports" onClick={() => onNavigate("reports")} />
+        <QuickAction icon={<ArrowDownRight size={15} />} label="Why did I lose?" hint="Mine your losses" onClick={onAnalyze} tone="loss" />
+      </div>
+    </div>
+  );
+}
+
+function TodayStat({ label, value, tone, sub }: { label: string; value: string; tone: "gain" | "loss" | "brand"; sub: string }) {
+  return (
+    <div className="rounded-xl border border-edge bg-panel2 px-4 py-3">
+      <p className="text-[9.5px] font-extrabold uppercase tracking-wider text-faint">{label}</p>
+      <p className={cn("tnum mt-1 font-display text-[24px] font-bold leading-none", tone === "gain" ? "text-gain" : tone === "loss" ? "text-loss" : "text-ink")}>
+        {value}
+      </p>
+      <p className="mt-1.5 text-[10px] font-semibold text-faint">{sub}</p>
+    </div>
+  );
+}
+
+function QuickAction({
+  icon,
+  label,
+  hint,
+  onClick,
+  tone,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  hint: string;
+  onClick: () => void;
+  tone?: "loss";
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "group flex items-center gap-3 rounded-2xl border bg-panel p-3.5 text-left transition-all hover:-translate-y-px hover:shadow-[var(--shadow)] active:translate-y-0 active:scale-[0.98]",
+        tone === "loss" ? "border-loss/25 hover:border-loss/50" : "border-edge hover:border-brand/50"
+      )}
+    >
+      <span
+        className={cn(
+          "grid h-9 w-9 shrink-0 place-items-center rounded-xl transition-transform duration-300 group-hover:scale-110",
+          tone === "loss" ? "bg-loss-soft text-loss" : "brand-gradient text-white shadow-[0_6px_16px_-6px_var(--brand-ring)]"
+        )}
+      >
+        {icon}
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-[12px] font-extrabold text-ink">{label}</span>
+        <span className="block truncate text-[9.5px] font-semibold text-faint">{hint}</span>
+      </span>
+    </button>
+  );
 }
 
 export default function App() {
@@ -121,6 +392,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [page, setPage] = useState<PageId>("dashboard");
   const [detail, setDetail] = useState<Trade | null>(null);
+  const [analyzeOpen, setAnalyzeOpen] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<number>(0);
@@ -149,7 +421,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   const prevK = useMemo(() => (previous.length ? computeKpis(previous) : null), [previous]);
   const spark = useMemo(() => sparkDaily(current), [current]);
   const cum = useMemo(() => cumSeries(current), [current]);
-  const bal = useMemo(() => balanceSeries(current), [current]);
+  const bal = useMemo(() => balanceSeries(trades), [trades]);
   const wd = useMemo(() => weekdaySeries(current), [current]);
   const donut = useMemo(() => donutData(k), [k]);
   const scores = useMemo(() => radarScores(k), [k]);
@@ -256,6 +528,16 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
         return (
           <>
             <Reveal>
+              <CommandCenter
+                trades={trades}
+                bal={bal}
+                onImport={() => fileRef.current?.click()}
+                onNavigate={handleNavigate}
+                onSelect={setDetail}
+                onAnalyze={() => setAnalyzeOpen(true)}
+              />
+            </Reveal>
+            <Reveal delay={80}>
               <ControlBar
                 filters={filters}
                 onChange={(f) => setFilters((prev) => ({ ...prev, ...f }))}
@@ -281,14 +563,9 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
                 <HeatmapCard trades={current} />
               </Reveal>
             </div>
-            <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12">
-              <Reveal delay={80} className="h-[320px] lg:col-span-5 lg:h-[420px]">
-                <BalanceCard data={bal} />
-              </Reveal>
-              <Reveal delay={120} className="lg:col-span-7">
-                <Calendar trades={calTrades} />
-              </Reveal>
-            </div>
+            <Reveal delay={80}>
+              <Calendar trades={calTrades} onSelectTrade={setDetail} showDayDetail />
+            </Reveal>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
               <Reveal delay={80} className="h-[330px] lg:col-span-4 lg:h-[340px]">
                 <DonutCard data={donut} winRate={k.winRate} />
@@ -386,6 +663,30 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
             <Replay trades={trades} />
           </Reveal>
         );
+      case "calendar":
+        return (
+          <Reveal>
+            <Calendar trades={calTrades} onSelectTrade={setDetail} showDayDetail />
+          </Reveal>
+        );
+      case "accounts":
+        return (
+          <Reveal>
+            <Accounts trades={trades} />
+          </Reveal>
+        );
+      case "risk":
+        return (
+          <Reveal>
+            <Risk trades={trades} />
+          </Reveal>
+        );
+      case "settings":
+        return (
+          <Reveal>
+            <Settings />
+          </Reveal>
+        );
       case "progress":
       case "resources":
         return <ComingSoon page={page} />;
@@ -399,12 +700,18 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
     mt5: "MT5 Gateway",
     notebook: "Notebook",
     attachments: "Attachments",
-    reports: "Reports",
+    reports: "Analytics",
     playbooks: "Playbooks",
     progress: "Progress Tracker",
     replay: "Trade Replay",
     resources: "Resource Center",
+    calendar: "Calendar",
+    accounts: "Accounts",
+    risk: "Risk",
+    settings: "Settings",
   };
+
+  const settingsName = vaultGet<{ name?: string }>("settings", {}).name?.trim() || "Daniel";
 
   return (
     <div className="flex min-h-screen bg-surface">
@@ -414,6 +721,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
         onNavigate={handleNavigate}
         onAddTrade={() => fileRef.current?.click()}
         active={page}
+        name={settingsName}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -490,6 +798,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
       )}
 
       {detail && <TradeDetail trade={detail} onClose={() => setDetail(null)} />}
+      {analyzeOpen && <AnalyzeLosses trades={trades} open={analyzeOpen} onClose={() => setAnalyzeOpen(false)} />}
     </div>
   );
 }

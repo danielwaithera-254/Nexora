@@ -14,7 +14,17 @@ export interface Playbook {
   id: string;
   name: string;
   rules: PlaybookRule[];
+  color?: PlaybookColor;
 }
+
+export type PlaybookColor = "green" | "blue" | "purple" | "orange";
+
+export const PLAYBOOK_COLORS: Record<PlaybookColor, { dot: string; chip: string; ring: string }> = {
+  green: { dot: "bg-emerald-400", chip: "text-emerald-600 bg-emerald-500/10 ring-emerald-500/25", ring: "border-emerald-400/40" },
+  blue: { dot: "bg-sky-400", chip: "text-sky-600 bg-sky-500/10 ring-sky-500/25", ring: "border-sky-400/40" },
+  purple: { dot: "bg-violet-400", chip: "text-violet-500 bg-violet-500/10 ring-violet-500/25", ring: "border-violet-400/40" },
+  orange: { dot: "bg-orange-400", chip: "text-orange-500 bg-orange-500/10 ring-orange-500/25", ring: "border-orange-400/40" },
+};
 
 export interface TradeReview {
   playbookId?: string;
@@ -22,6 +32,7 @@ export interface TradeReview {
   whyMissed: Record<string, string>;
   mistakeTags: string[];
   notes: { why?: string; well?: string; poorly?: string; change?: string };
+  psych?: { before?: string; during?: string; after?: string; followedPlan?: boolean };
 }
 
 export interface TradeAttach {
@@ -53,10 +64,24 @@ export const MISTAKE_TAGS = [
   "Skewed Risk",
 ] as const;
 
+export const PSYCH_EMOTIONS = [
+  "Calm",
+  "Focused",
+  "Confident",
+  "Happy",
+  "Euphoric",
+  "Anxious",
+  "Hesitant",
+  "Frustrated",
+  "Revenge",
+  "Bored",
+] as const;
+
 const SEED_PLAYBOOKS: Playbook[] = [
   {
     id: "pb-lsr",
     name: "London Session Reversal",
+    color: "blue",
     rules: [
       { id: "l1", text: "HTF bias identified" },
       { id: "l2", text: "Liquidity level identified" },
@@ -71,6 +96,7 @@ const SEED_PLAYBOOKS: Playbook[] = [
   {
     id: "pb-ny",
     name: "NY Liquidity Sweep",
+    color: "purple",
     rules: [
       { id: "n1", text: "HTF bias identified" },
       { id: "n2", text: "Asia range liquidity sweep" },

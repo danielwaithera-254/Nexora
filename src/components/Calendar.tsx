@@ -29,11 +29,20 @@ interface DayRec {
   trades: number[]; // per-trade pnl, for the mini bars
 }
 
-export default function Calendar({ trades }: { trades: Trade[] }) {
+export default function Calendar({
+  trades,
+  onSelectTrade,
+  showDayDetail,
+}: {
+  trades: Trade[];
+  onSelectTrade?: (t: Trade) => void;
+  showDayDetail?: boolean;
+}) {
   const [view, setView] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
+  const [sel, setSel] = useState<string | null>(null);
 
   /* per-day aggregation with individual trade results */
   const map = useMemo(() => {
@@ -249,10 +258,15 @@ export default function Calendar({ trades }: { trades: Trade[] }) {
                       return (
                         <div
                           key={key}
+                          onClick={showDayDetail && rec ? () => setSel(sel === key ? null : key) : undefined}
                           style={c.inMonth ? { animationDelay: `${wi * 40 + c.date.getDay() * 18}ms` } : undefined}
                           className={cn(
                             "group relative h-[76px] rounded-xl border p-1.5 transition-all duration-200 ease-out",
-                            c.inMonth && "cal-cell cursor-default hover:z-20 hover:-translate-y-1",
+                            c.inMonth &&
+                              (showDayDetail && rec
+                                ? "cal-cell cursor-pointer hover:z-20 hover:-translate-y-1"
+                                : "cal-cell cursor-default hover:z-20 hover:-translate-y-1"),
+                            sel === key && "ring-2 ring-brand",
                             !c.inMonth
                               ? "border-transparent"
                               : rec && rec.pnl > 0
@@ -403,6 +417,50 @@ export default function Calendar({ trades }: { trades: Trade[] }) {
           </div>
         </div>
       </div>
+
+      {/* selected day detail */}
+      {showDayDetail && sel && (
+        <div className="relative border-t border-edge2 px-4 py-4 sm:px-5">
+          <div className="mb-2.5 flex items-center gap-2">
+            <h4 className="font-display text-[13px] font-bold text-ink">{fmtDate(sel)}</h4>
+            <button
+              onClick={() => setSel(null)}
+              className="ml-auto rounded-lg border border-edge bg-panel2 px-2.5 py-1 text-[10px] font-bold text-faint transition-colors hover:text-ink"
+            >
+              Close
+            </button>
+          </div>
+          {(() => {
+            const dayTrades = trades.filter((t) => t.date === sel);
+            if (!dayTrades.length) {
+              return <p className="text-[11px] font-bold text-faint">No trades on this day.</p>;
+            }
+            return (
+              <div className="space-y-1">
+                {dayTrades.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => onSelectTrade?.(t)}
+                    className="flex w-full items-center gap-3 rounded-xl border border-edge bg-panel2 px-3 py-2 text-left transition-colors hover:border-brand/40"
+                  >
+                    <span className="w-16 shrink-0 rounded-md bg-brand-soft px-1.5 py-0.5 text-center font-display text-[10.5px] font-bold text-brand">
+                      {t.symbol}
+                    </span>
+                    <span className={cn("w-12 shrink-0 text-[9.5px] font-extrabold uppercase", t.side === "Long" ? "text-gain" : "text-loss")}>
+                      {t.side}
+                    </span>
+                    <span className="truncate text-[10.5px] font-semibold text-faint">{t.strategy}</span>
+                    <span className="ml-auto hidden text-[10px] font-semibold text-faint sm:block">{t.session}</span>
+                    <span className={cn("tnum w-16 shrink-0 text-right font-display text-[11.5px] font-bold", t.pnl >= 0 ? "text-gain" : "text-loss")}>
+                      {fmtMoney(t.pnl, { sign: true })}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      )}
     </Card>
   );
 }
