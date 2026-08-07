@@ -1,10 +1,11 @@
-import { Menu, Moon, Sun, Sparkles, Settings2, Bell } from "lucide-react";
+import { Menu, Moon, Sun, Sparkles, Settings2, Bell, Lock } from "lucide-react";
 
 export default function TopBar({
   onMenu,
   dark,
   onToggleDark,
   onInsights,
+  onLock,
   syncLabel,
   pageLabel,
 }: {
@@ -12,6 +13,7 @@ export default function TopBar({
   dark: boolean;
   onToggleDark: () => void;
   onInsights: () => void;
+  onLock: () => void;
   syncLabel: string;
   pageLabel: string;
 }) {
@@ -42,6 +44,14 @@ export default function TopBar({
         >
           <Sparkles size={13} className="transition-transform duration-300 group-hover:rotate-12" />
           <span className="hidden sm:inline">Insights</span>
+        </button>
+        <button
+          onClick={onLock}
+          className="group relative rounded-xl border border-edge bg-panel p-2 text-mut transition-all hover:border-brand/40 hover:text-brand active:scale-90"
+          aria-label="Lock now — re-encrypt and lock the vault"
+          title="Lock now"
+        >
+          <Lock size={15} />
         </button>
         <button
           onClick={onToggleDark}

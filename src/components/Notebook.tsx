@@ -15,6 +15,7 @@ import {
 import { BookHeart, Trash2, Plus, Sparkles, X, Activity, BarChart3, Scale } from "lucide-react";
 import { Card, CardHead } from "./ui";
 import type { Trade } from "../data/trades";
+import { vaultGet, vaultSet } from "../lib/vault";
 import { fmtDate, fmtDateShort, fmtMoney } from "../lib/format";
 import { cn } from "../utils/cn";
 
@@ -63,7 +64,6 @@ export const EMOTIONS: Record<
 };
 
 const ORDER = Object.keys(EMOTIONS) as EmotionKey[];
-const STORAGE_KEY = "nexora-notebook-v1";
 
 const toneColor = (t: "pos" | "neg" | "neu") =>
   t === "pos" ? "var(--gain)" : t === "neg" ? "var(--loss)" : "var(--faint)";
@@ -76,12 +76,7 @@ const isoOf = (d: Date) => {
 };
 
 export function loadNotebook(): EmotionEntry[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as EmotionEntry[]) : [];
-  } catch {
-    return [];
-  }
+  return vaultGet<EmotionEntry[]>("notebook", []);
 }
 
 function hash(s: string) {
@@ -148,7 +143,7 @@ export default function Notebook({ trades }: { trades: Trade[] }) {
   const [filter, setFilter] = useState<"all" | "pos" | "neg">("all");
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    vaultSet("notebook", entries);
   }, [entries]);
 
   const addEntry = (e: Omit<EmotionEntry, "id" | "ts">) => {

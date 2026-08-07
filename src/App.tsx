@@ -22,7 +22,9 @@ import Replay from "./components/Replay";
 import TradeDetail from "./components/TradeDetail";
 import ComingSoon from "./components/ComingSoon";
 import Mt5Bridge from "./components/Mt5Bridge";
+import Unlock from "./components/Unlock";
 import { Reveal } from "./components/ui";
+import { canUseVault, lockVault, migrateLegacy, trySessionUnlock, vaultExists, vaultGet, vaultSet } from "./lib/vault";
 import {
   generateTrades,
   parseImportFile,
@@ -66,9 +68,55 @@ interface Toast {
 }
 
 export default function App() {
-  const [trades, setTrades] = useState<Trade[]>(() => generateTrades());
-  const [filters, setFilters] = useState<Filters>({ range: "90D", strategy: "All", account: "All" });
+  const [gate, setGate] = useState<"loading" | "create" | "unlock" | "error" | "ready">("loading");
   const [dark, setDark] = useState(() => localStorage.getItem("nexora-dark") === "1");
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+    localStorage.setItem("nexora-dark", dark ? "1" : "0");
+  }, [dark]);
+
+  useEffect(() => {
+    const boot = async () => {
+      if (!canUseVault()) {
+        setGate("error");
+        return;
+      }
+      if (!vaultExists()) {
+        setGate("create");
+        return;
+      }
+      const ok = await trySessionUnlock();
+      if (ok) {
+        migrateLegacy();
+        setGate("ready");
+      } else {
+        setGate("unlock");
+      }
+    };
+    void boot();
+  }, []);
+
+  if (gate !== "ready") {
+    return (
+      <Unlock
+        mode={gate === "error" ? "error" : gate === "create" ? "create" : "unlock"}
+        dark={dark}
+        onToggleDark={() => setDark((d) => !d)}
+        onReady={() => {
+          migrateLegacy();
+          setGate("ready");
+        }}
+      />
+    );
+  }
+
+  return <JournalApp dark={dark} onToggleDark={() => setDark((d) => !d)} onLock={() => { lockVault(); window.location.reload(); }} />;
+}
+
+function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDark: () => void; onLock: () => void }) {
+  const [trades, setTrades] = useState<Trade[]>(() => vaultGet("trades", generateTrades()));
+  const [filters, setFilters] = useState<Filters>({ range: "90D", strategy: "All", account: "All" });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [page, setPage] = useState<PageId>("dashboard");
@@ -87,9 +135,8 @@ export default function App() {
   );
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-    localStorage.setItem("nexora-dark", dark ? "1" : "0");
-  }, [dark]);
+    vaultSet("trades", trades);
+  }, [trades]);
 
   const showToast = (msg: string, tone: Toast["tone"] = "brand") => {
     window.clearTimeout(toastTimer.current);
@@ -373,8 +420,9 @@ export default function App() {
         <TopBar
           onMenu={() => setSidebarOpen(true)}
           dark={dark}
-          onToggleDark={() => setDark((d) => !d)}
+          onToggleDark={onToggleDark}
           onInsights={() => setInsightsOpen(true)}
+          onLock={onLock}
           syncLabel={syncLabel}
           pageLabel={pageTitle[page]}
         />

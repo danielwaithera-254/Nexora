@@ -35,6 +35,7 @@ import {
   saveDailyNotes,
   saveReview,
   saveTradeAttachments,
+  loadPlaybooks,
   type ExecEvent,
   type Playbook,
   type TradeAttach,
@@ -48,7 +49,7 @@ const fmtMoney = (v: number) => `${v >= 0 ? "+" : "-"}$${Math.abs(v).toLocaleStr
 
 export default function TradeDetail({ trade, onClose }: { trade: Trade; onClose: () => void }) {
   const [tab, setTab] = useState<TabId>("stats");
-  const [playbooks] = useState<Playbook[]>(() => loadPlaybooksLocal());
+  const [playbooks] = useState<Playbook[]>(() => loadPlaybooks());
   const [review, setReview] = useState<TradeReview>(() => loadReviews()[trade.id] ?? blankReview());
   const [attachments, setAttachments] = useState<TradeAttach[]>(() => loadTradeAttachments()[trade.id] ?? []);
   const [daily, setDaily] = useState(() => loadDailyNotes()[trade.date] ?? "");
@@ -210,43 +211,6 @@ export default function TradeDetail({ trade, onClose }: { trade: Trade; onClose:
       </div>
     </div>
   );
-}
-
-function loadPlaybooksLocal(): Playbook[] {
-  try {
-    const raw = localStorage.getItem("nexora-playbooks");
-    const parsed = raw ? JSON.parse(raw) : null;
-    if (Array.isArray(parsed) && parsed.length) return parsed;
-  } catch {
-    /* fall through to seed */
-  }
-  return [
-    {
-      id: "pb-lsr",
-      name: "London Session Reversal",
-      rules: [
-        { id: "l1", text: "HTF bias identified" },
-        { id: "l2", text: "Liquidity level identified" },
-        { id: "l3", text: "Liquidity sweep occurred" },
-        { id: "l4", text: "Displacement confirmed" },
-        { id: "l5", text: "FVG formed" },
-        { id: "l6", text: "Entry within planned zone" },
-        { id: "l7", text: "Stop placed beyond invalidation" },
-        { id: "l8", text: "Entry during approved session" },
-      ],
-    },
-    {
-      id: "pb-ny",
-      name: "NY Liquidity Sweep",
-      rules: [
-        { id: "n1", text: "HTF bias identified" },
-        { id: "n2", text: "Asia range liquidity sweep" },
-        { id: "n3", text: "Displacement confirmed" },
-        { id: "n4", text: "FVG / OB formed" },
-        { id: "n5", text: "Entry confirmation" },
-      ],
-    },
-  ];
 }
 
 function blankReview(): TradeReview {

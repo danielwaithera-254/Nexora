@@ -1,4 +1,5 @@
 import type { Trade } from "../data/trades";
+import { vaultGet, vaultSet } from "./vault";
 
 /* ------------------------------------------------------------------ */
 /* Playbooks: named strategy rule-sets a trade can be checked against  */
@@ -38,11 +39,6 @@ export interface ExecEvent {
   detail: string;
   tone: "gain" | "loss" | "brand" | "flat";
 }
-
-const PLAYBOOKS_KEY = "nexora-playbooks";
-const REVIEWS_KEY = "nexora-trade-reviews";
-const ATTACH_KEY = "nexora-trade-attachments";
-const DAILY_KEY = "nexora-daily-notes";
 
 export const MISTAKE_TAGS = [
   "Early Entry",
@@ -85,59 +81,42 @@ const SEED_PLAYBOOKS: Playbook[] = [
   },
 ];
 
-const read = <T,>(key: string, fallback: T): T => {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-const write = (key: string, value: unknown) => {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* storage full — ignore */
-  }
-};
-
 export function loadPlaybooks(): Playbook[] {
-  const stored = read<Playbook[] | null>(PLAYBOOKS_KEY, null);
+  const stored = vaultGet<Playbook[] | null>("playbooks", null);
   if (stored) return stored;
   const seeded = SEED_PLAYBOOKS;
-  write(PLAYBOOKS_KEY, seeded);
+  vaultSet("playbooks", seeded);
   return seeded;
 }
 
 export function savePlaybooks(p: Playbook[]) {
-  write(PLAYBOOKS_KEY, p);
+  vaultSet("playbooks", p);
 }
 
 export function loadReviews(): Record<string, TradeReview> {
-  return read<Record<string, TradeReview>>(REVIEWS_KEY, {});
+  return vaultGet<Record<string, TradeReview>>("reviews", {});
 }
 
 export function saveReview(tradeId: string, review: TradeReview) {
   const all = loadReviews();
   all[tradeId] = review;
-  write(REVIEWS_KEY, all);
+  vaultSet("reviews", all);
 }
 
 export function loadTradeAttachments(): Record<string, TradeAttach[]> {
-  return read<Record<string, TradeAttach[]>>(ATTACH_KEY, {});
+  return vaultGet<Record<string, TradeAttach[]>>("tradeAttachments", {});
 }
 
 export function saveTradeAttachments(map: Record<string, TradeAttach[]>) {
-  write(ATTACH_KEY, map);
+  vaultSet("tradeAttachments", map);
 }
 
 export function loadDailyNotes(): Record<string, string> {
-  return read<Record<string, string>>(DAILY_KEY, {});
+  return vaultGet<Record<string, string>>("dailyNotes", {});
 }
 
 export function saveDailyNotes(map: Record<string, string>) {
-  write(DAILY_KEY, map);
+  vaultSet("dailyNotes", map);
 }
 
 export const adherencePercent = (rules: PlaybookRule[], checks: Record<string, boolean>) => {

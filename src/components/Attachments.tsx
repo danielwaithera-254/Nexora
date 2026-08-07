@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { vaultGet, vaultSet } from "../lib/vault";
 import {
   Camera,
   ChevronLeft,
@@ -46,7 +47,6 @@ export interface Attachment {
   addedAt: number;
 }
 
-const LS_KEY = "nexora-attachments";
 const MAX_SIZE = 10 * 1024 * 1024;
 
 const CAT_STYLE: Record<AttachmentCategory, string> = {
@@ -73,14 +73,7 @@ const extOf = (dataUrl: string, fallback = "png") => {
 };
 
 function loadAttachments(): Attachment[] {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as Attachment[]) : [];
-  } catch {
-    return [];
-  }
+  return vaultGet<Attachment[]>("attachments", []);
 }
 
 function readImage(file: File): Promise<{ dataUrl: string; width?: number; height?: number }> {
@@ -131,12 +124,8 @@ export default function Attachments() {
 
   const persist = useCallback((next: Attachment[]) => {
     setAttachments(next);
-    try {
-      localStorage.setItem(LS_KEY, JSON.stringify(next));
-      setStorageWarn(false);
-    } catch {
-      setStorageWarn(true);
-    }
+    vaultSet("attachments", next);
+    setStorageWarn(false);
   }, []);
 
   const ups = (id: string, p: number) =>
@@ -202,12 +191,8 @@ export default function Attachments() {
     if (results.length) {
       setAttachments((prev) => {
         const next = [...prev, ...results];
-        try {
-          localStorage.setItem(LS_KEY, JSON.stringify(next));
-          setStorageWarn(false);
-        } catch {
-          setStorageWarn(true);
-        }
+        vaultSet("attachments", next);
+        setStorageWarn(false);
         return next;
       });
       flash(`${results.length} attachment${results.length > 1 ? "s" : ""} uploaded.`);
