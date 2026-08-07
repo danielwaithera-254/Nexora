@@ -7,7 +7,13 @@ import { cn } from "../utils/cn";
 
 type SortKey = "date" | "symbol" | "qty" | "r" | "pnl";
 
-export default function TradesTable({ trades }: { trades: Trade[] }) {
+export default function TradesTable({
+  trades,
+  onSelect,
+}: {
+  trades: Trade[];
+  onSelect?: (t: Trade) => void;
+}) {
   const [q, setQ] = useState("");
   const [side, setSide] = useState("All");
   const [result, setResult] = useState("All");
@@ -135,7 +141,14 @@ export default function TradesTable({ trades }: { trades: Trade[] }) {
             {rows.slice(0, limit).map((t) => (
               <tr
                 key={t.id}
-                className="group border-b border-edge2/60 transition-colors last:border-0 hover:bg-brand-soft/40"
+                onClick={() => onSelect?.(t)}
+                title={onSelect ? "Open trade details — stats, playbook, execution, attachments & notes" : undefined}
+                className={cn(
+                  "group border-b border-edge2/60 transition-colors last:border-0",
+                  onSelect
+                    ? "cursor-pointer hover:bg-brand-soft/40"
+                    : "hover:bg-brand-soft/40"
+                )}
               >
                 <td className="whitespace-nowrap px-3 py-2.5 text-[11.5px] font-semibold text-mut tnum">
                   {fmtDate(t.date)}

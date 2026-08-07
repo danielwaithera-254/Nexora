@@ -16,6 +16,10 @@ import InsightsDrawer from "./components/InsightsDrawer";
 import DailyJournal from "./components/DailyJournal";
 import Notebook from "./components/Notebook";
 import Attachments from "./components/Attachments";
+import Playbooks from "./components/Playbooks";
+import Reports from "./components/Reports";
+import Replay from "./components/Replay";
+import TradeDetail from "./components/TradeDetail";
 import ComingSoon from "./components/ComingSoon";
 import Mt5Bridge from "./components/Mt5Bridge";
 import { Reveal } from "./components/ui";
@@ -50,6 +54,7 @@ type PageId =
   | "mt5"
   | "notebook"
   | "attachments"
+  | "reports"
   | "playbooks"
   | "progress"
   | "replay"
@@ -67,6 +72,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [page, setPage] = useState<PageId>("dashboard");
+  const [detail, setDetail] = useState<Trade | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<number>(0);
@@ -245,7 +251,7 @@ export default function App() {
               </Reveal>
             </div>
             <Reveal delay={80}>
-              <TradesTable trades={current} />
+              <TradesTable trades={current} onSelect={setDetail} />
             </Reveal>
           </>
         );
@@ -299,7 +305,7 @@ export default function App() {
               />
             </Reveal>
             <Reveal delay={60}>
-              <TradesTable trades={current} />
+              <TradesTable trades={current} onSelect={setDetail} />
             </Reveal>
           </>
         );
@@ -315,9 +321,25 @@ export default function App() {
             <Attachments />
           </Reveal>
         );
+      case "reports":
+        return (
+          <Reveal>
+            <Reports trades={trades} />
+          </Reveal>
+        );
       case "playbooks":
-      case "progress":
+        return (
+          <Reveal>
+            <Playbooks trades={trades} />
+          </Reveal>
+        );
       case "replay":
+        return (
+          <Reveal>
+            <Replay trades={trades} />
+          </Reveal>
+        );
+      case "progress":
       case "resources":
         return <ComingSoon page={page} />;
     }
@@ -330,6 +352,7 @@ export default function App() {
     mt5: "MT5 Gateway",
     notebook: "Notebook",
     attachments: "Attachments",
+    reports: "Reports",
     playbooks: "Playbooks",
     progress: "Progress Tracker",
     replay: "Trade Replay",
@@ -417,6 +440,8 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {detail && <TradeDetail trade={detail} onClose={() => setDetail(null)} />}
     </div>
   );
 }
