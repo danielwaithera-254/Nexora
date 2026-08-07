@@ -1,18 +1,23 @@
 import { useMemo, useState } from "react";
-import { ShieldAlert, AlertTriangle, CheckCircle2, Gauge, Flame, Briefcase, Hourglass } from "lucide-react";
+import { ShieldAlert, AlertTriangle, CheckCircle2, Gauge, Flame, Briefcase, Hourglass, Wallet, TrendingUp } from "lucide-react";
 import { Card, CardHead, Seg } from "./ui";
 import type { Trade } from "../data/trades";
-import { generateOpenPositions, riskReport, SEED_ACCOUNTS, type AccountDef } from "../lib/risk";
+import { accountStats, generateOpenPositions, riskReport, SEED_ACCOUNTS, type AccountDef } from "../lib/risk";
 import { vaultGet } from "../lib/vault";
 import { fmtMoney } from "../lib/format";
 import { cn } from "../utils/cn";
 
-export default function Risk({ trades }: { trades: Trade[] }) {
+export default function Risk({ trades, account }: { trades: Trade[]; account: string }) {
   const accounts = useMemo<AccountDef[]>(() => vaultGet("accounts", SEED_ACCOUNTS), []);
   const [span, setSpan] = useState<"today" | "week" | "month">("today");
 
+  const active = useMemo(
+    () => accounts.find((a) => (a.tradeAccount || a.name) === account) ?? accounts[0],
+    [accounts, account]
+  );
+
   const report = useMemo(() => {
-    const base = riskReport(accounts, trades, generateOpenPositions(trades));
+    const base = riskReport(active ? [active] : accounts, trades, generateOpenPositions(trades));
     if (span === "today") return base;
     const days = span === "week" ? 7 : 30;
     const cutoff = new Date();
@@ -20,7 +25,7 @@ export default function Risk({ trades }: { trades: Trade[] }) {
     const within = trades.filter((t) => t.ts >= cutoff.getTime());
     const win = within.filter((t) => t.pnl > 0).length;
     const loss = -Math.min(0, within.reduce((s, t) => s + t.pnl, 0));
-    const limit = accounts[0]?.dailyLossLimit ?? 1;
+    const limit = active?.dailyLossLimit ?? 1;
     return {
       ...base,
       todayLoss: loss,
@@ -33,10 +38,12 @@ export default function Risk({ trades }: { trades: Trade[] }) {
           : { tone: "warn" as const, text: `You're using ${Math.round((loss / limit) * 100)}% of the ${fmtMoney(limit)} period limit.` },
       ],
     };
-  }, [accounts, trades, span]);
+  }, [active, accounts, trades, span]);
+
+  const stats = useMemo(() => (active ? accountStats(active, trades) : null), [active, trades]);
 
   const riskPct = Math.round(report.riskUsed * 100);
-  const limit = accounts[0];
+  const limit = active;
 
   return (
     <div className="space-y-4">
@@ -46,15 +53,22 @@ export default function Risk({ trades }: { trades: Trade[] }) {
           info="Live guardrails for your daily loss limit, exposure and position sizing. Warnings appear the moment a rule is in danger."
           icon={<ShieldAlert size={14} />}
           right={
-            <Seg
-              options={[
-                { key: "today", label: "Today" },
-                { key: "week", label: "7 days" },
-                { key: "month", label: "30 days" },
-              ]}
-              value={span}
-              onChange={(v) => setSpan(v as typeof span)}
-            />
+            <div className="flex items-center gap-2">
+              {active && (
+                <span className="flex items-center gap-1.5 rounded-xl border border-edge bg-panel2 px-2.5 py-1.5 text-[10px] font-bold text-ink">
+                  <Wallet size={11} className="text-brand" /> {active.name}
+                </span>
+              )}
+              <Seg
+                options={[
+                  { key: "today", label: "Today" },
+                  { key: "week", label: "7 days" },
+                  { key: "month", label: "30 days" },
+                ]}
+                value={span}
+                onChange={(v) => setSpan(v as typeof span)}
+              />
+            </div>
           }
         />
 
@@ -97,6 +111,20 @@ export default function Risk({ trades }: { trades: Trade[] }) {
               value={fmtMoney(Math.max(0, (limit?.dailyLossLimit ?? 0) - report.todayLoss))}
               sub="before breach"
               tone={report.riskUsed >= 0.6 ? "loss" : "gain"}
+            />
+            <StatBox
+              icon={<TrendingUp size={13} />}
+              label="Overall drawdown"
+              value={fmtMoney(stats?.drawdown ?? 0)}
+              sub={stats ? `${fmtMoney(Math.max(0, (limit?.maxDrawdown ?? 0) - stats.drawdown))} of ${fmtMoney(limit?.maxDrawdown ?? 0)} left` : "—"}
+              tone="loss"
+            />
+            <StatBox
+              icon={<Wallet size={13} />}
+              label="Account equity"
+              value={fmtMoney(stats?.equity ?? 0)}
+              sub={active ? `from ${fmtMoney(active.balance)} start` : "—"}
+              tone={(stats?.equity ?? 0) >= (active?.balance ?? 0) ? "gain" : "loss"}
             />
           </div>
 

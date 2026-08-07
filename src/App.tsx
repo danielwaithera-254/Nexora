@@ -781,7 +781,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
       case "risk":
         return (
           <Reveal>
-            <Risk trades={scopedTrades} />
+            <Risk trades={scopedTrades} account={effectiveAccount} />
           </Reveal>
         );
       case "settings":
