@@ -215,3 +215,17 @@ export async function changePassphrase(oldPass: string, newPass: string, remembe
 export function exportState(): string {
   return JSON.stringify(state, null, 2);
 }
+
+/** Replace the vault contents from an exported backup (validated JSON object). */
+export function importState(json: string): boolean {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return false;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
+  state = parsed as Record<string, unknown>;
+  persistNow();
+  return true;
+}

@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from "react";
-import { ShieldCheck, KeyRound, Eye, EyeOff, Lock, Moon, Sun, AlertTriangle } from "lucide-react";
+import { useState, type ChangeEvent, type FormEvent } from "react";
+import { ShieldCheck, KeyRound, Eye, EyeOff, Lock, Moon, Sun, AlertTriangle, Upload, X } from "lucide-react";
 import { cn } from "../utils/cn";
 
 function strengthOf(pass: string): { label: string; color: string; pct: number } {
@@ -32,8 +32,24 @@ export default function Unlock({
   const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [backup, setBackup] = useState<{ name: string; text: string } | null>(null);
 
   const strength = strengthOf(pass);
+
+  const handleBackupFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    try {
+      const text = await f.text();
+      JSON.parse(text);
+      setBackup({ name: f.name, text });
+      setErr(null);
+    } catch {
+      setBackup(null);
+      setErr("That file isn't a valid Nexora backup (must be a JSON export).");
+    }
+  };
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
@@ -48,8 +64,13 @@ export default function Unlock({
     }
     setBusy(true);
     try {
-      const { createVault, migrateLegacy } = await import("../lib/vault");
+      const { createVault, migrateLegacy, importState } = await import("../lib/vault");
       await createVault(pass, remember);
+      if (backup && !importState(backup.text)) {
+        setErr("The backup didn't restore — the vault is empty, try again.");
+        setBusy(false);
+        return;
+      }
       migrateLegacy();
       onReady();
     } catch {
@@ -182,6 +203,33 @@ export default function Unlock({
                     placeholder="Repeat it exactly"
                     className="w-full rounded-xl border border-edge bg-panel2 px-3.5 py-2.5 text-[13px] font-semibold text-ink outline-none transition-all placeholder:text-faint focus:border-brand/60 focus:ring-2 focus:ring-brand/20"
                   />
+                </div>
+              )}
+
+              {isCreate && (
+                <div className="rounded-xl border border-dashed border-edge bg-panel2 p-3">
+                  <div className="flex items-center gap-2.5">
+                    <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-[11px] font-semibold text-mut transition-colors hover:text-brand">
+                      <Upload size={13} />
+                      <span className={cn("truncate", backup && "text-brand")}>
+                        {backup ? backup.name : "Restore from a backup file instead"}
+                      </span>
+                      <input type="file" accept="application/json,.json" className="hidden" onChange={handleBackupFile} />
+                    </label>
+                    {backup && (
+                      <button
+                        type="button"
+                        onClick={() => setBackup(null)}
+                        className="rounded-md p-1 text-faint transition-colors hover:text-loss"
+                        aria-label="Remove backup file"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-1.5 text-[9.5px] leading-relaxed text-faint">
+                    Moving from another device? Pick the backup you exported there — it'll be encrypted into this new vault with the passphrase above.
+                  </p>
                 </div>
               )}
 

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type ChangeEvent, type FormEvent } from "react";
 import {
   Settings as SettingsIcon,
   User,
@@ -7,12 +7,13 @@ import {
   ShieldCheck,
   Lock,
   Download,
+  Upload,
   KeyRound,
   CheckCircle2,
   AlertTriangle,
 } from "lucide-react";
 import { Card, CardHead } from "./ui";
-import { changePassphrase, exportState, lockVault, vaultGet, vaultSet } from "../lib/vault";
+import { changePassphrase, exportState, importState, lockVault, vaultGet, vaultSet } from "../lib/vault";
 import { cn } from "../utils/cn";
 
 export default function Settings() {
@@ -74,6 +75,22 @@ export default function Settings() {
     URL.revokeObjectURL(url);
     setMsg({ ok: true, text: "Backup downloaded — store it somewhere safe." });
     window.setTimeout(() => setMsg(null), 2600);
+  };
+
+  const importBackup = async (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setMsg(null);
+    try {
+      const text = await f.text();
+      if (!importState(text)) throw new Error("bad");
+      setMsg({ ok: true, text: "Backup restored — reloading…" });
+      window.setTimeout(() => window.location.reload(), 700);
+    } catch {
+      setMsg({ ok: false, text: "That file isn't a valid Nexora backup." });
+      window.setTimeout(() => setMsg(null), 3000);
+    }
   };
 
   return (
@@ -197,9 +214,13 @@ export default function Settings() {
               >
                 <Download size={13} /> Export backup (JSON)
               </button>
+              <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-edge bg-panel2 px-3.5 py-2.5 text-[11px] font-bold text-ink transition-all hover:border-brand/40 hover:text-brand">
+                <Upload size={13} /> Restore from backup
+                <input type="file" accept="application/json,.json" className="hidden" onChange={importBackup} />
+              </label>
             </div>
             <p className="mt-2 max-w-xl text-[9.5px] leading-relaxed text-faint">
-              Everything lives in an AES-256 encrypted vault on this device — no accounts, no cloud, no telemetry. The backup file is a plaintext copy of your data: keep it offline, or delete it after exporting.
+              To move to another device (like your phone): export here, transfer the file, then restore it there. Everything lives in an AES-256 encrypted vault on this device — no accounts, no cloud, no telemetry.
             </p>
           </section>
         </div>
