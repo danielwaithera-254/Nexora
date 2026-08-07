@@ -470,13 +470,34 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
         showToast("No valid rows found — expected an MT5 report or date,symbol,side,pnl CSV", "loss");
         return;
       }
+      let attached = 0;
+      let added = 0;
       setTrades((prev) => {
-        const seen = new Set(prev.map((t) => t.id));
-        return [...prev, ...list.filter((t) => !seen.has(t.id))];
+        const map = new Map(prev.map((t) => [t.id, t]));
+        for (const t of list) {
+          const existing = map.get(t.id);
+          if (existing) {
+            if (existing.account !== accountName) {
+              map.set(t.id, { ...existing, account: accountName });
+              attached++;
+            }
+          } else {
+            map.set(t.id, t);
+            added++;
+          }
+        }
+        return [...map.values()];
       });
       changeAccount(accountName);
       setFilters({ range: "ALL", strategy: "All", account: "All" });
-      showToast(`Imported ${list.length} trades into ${accountName} (${sourceName})`, "gain");
+      showToast(
+        added
+          ? `Imported ${added} trades into ${accountName}${attached ? `, re-attached ${attached} existing` : ""} (${sourceName})`
+          : attached
+            ? `Re-attached ${attached} existing trades to ${accountName} (${sourceName})`
+            : `All ${list.length} trades already belong to ${accountName} (${sourceName})`,
+        "gain"
+      );
     },
     []
   );
@@ -505,6 +526,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   const accountOptions = useMemo(() => {
     const tagToValue = new Map<string, string>();
     const tagSets = new Map<string, Set<string>>();
+    const labels = new Map<string, string>();
     for (const a of vaultGet("accounts", SEED_ACCOUNTS)) {
       const value = a.tradeAccount || a.name;
       const set = tagSets.get(value) ?? new Set<string>();
@@ -513,19 +535,20 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
         if (!tagToValue.has(t)) tagToValue.set(t, value);
       });
       tagSets.set(value, set);
+      labels.set(value, a.name === value ? value : `${a.name} (${value})`);
     }
     const countFor = (tags: Set<string>) => trades.reduce((s, t) => s + (tags.has(t.account) ? 1 : 0), 0);
     const options: { value: string; label: string }[] = [];
     const seen = new Set<string>();
     for (const [value, tags] of tagSets) {
       seen.add(value);
-      options.push({ value, label: `${value} · ${countFor(tags)}` });
+      options.push({ value, label: `${labels.get(value) ?? value} · ${countFor(tags)}` });
     }
     for (const tag of [...new Set(trades.map((t) => t.account).filter(Boolean))].sort((a, b) => a.localeCompare(b))) {
       const value = tagToValue.get(tag) ?? tag;
       if (seen.has(value)) continue;
       seen.add(value);
-      options.push({ value, label: `${value} · ${countFor(tagSets.get(value) ?? new Set([value]))}` });
+      options.push({ value, label: `${labels.get(value) ?? value} · ${countFor(tagSets.get(value) ?? new Set([value]))}` });
     }
     return options;
   }, [accountsVersion, activeAccount, trades.length]);

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
-import { Wallet, Plus, Pencil, X, TrendingUp, ShieldAlert, Target, CalendarDays, Upload } from "lucide-react";
+import { Wallet, Plus, Pencil, X, TrendingUp, ShieldAlert, Target, CalendarDays, Upload, Trash2 } from "lucide-react";
 import { Card, CardHead } from "./ui";
 import type { Trade } from "../data/trades";
 import { accountStats, accountTagSet, SEED_ACCOUNTS, type AccountDef } from "../lib/risk";
@@ -60,6 +60,14 @@ export default function Accounts({
     persist(accounts.filter((a) => a.id !== acc.id));
     if (n > 0) onDeleteTrades(tags);
     setEditing(null);
+  };
+
+  const handleClearHistory = (acc: AccountDef) => {
+    const tags = [...accountTagSet(acc)];
+    const n = trades.filter((t) => tags.includes(t.account)).length;
+    if (!n) return;
+    if (!window.confirm(`Remove ${n} trade${n === 1 ? "" : "s"} from "${acc.name}"? Use this to drop an old CSV before importing a newer one.`)) return;
+    onDeleteTrades(tags);
   };
 
   const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -125,6 +133,14 @@ export default function Accounts({
                       <Upload size={12} />
                     </button>
                     <button
+                      onClick={() => handleClearHistory(acc)}
+                      className="rounded-lg border border-edge bg-panel p-1.5 text-faint transition-colors hover:border-loss/40 hover:text-loss"
+                      aria-label="Remove this account's imported trades"
+                      title="Remove this account's imported trades (to replace an old CSV)"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                    <button
                       onClick={() => setEditing({ ...acc })}
                       className="rounded-lg border border-edge bg-panel p-1.5 text-faint transition-colors hover:border-brand/40 hover:text-brand"
                       aria-label="Edit account"
@@ -148,19 +164,19 @@ export default function Accounts({
                 <div className="mt-4 space-y-3">
                   <Meter
                     icon={<ShieldAlert size={11} />}
-                    label="Daily loss"
+                    label="Daily drawdown"
                     value={`${fmtMoney(Math.min(0, s.todayPnl))} / ${fmtMoney(acc.dailyLossLimit)}`}
                     pct={dayPct}
-                    danger
-                    sub={`${fmtMoney(s.dailyLossRemaining)} remaining`}
+                    red
+                    sub={`${fmtMoney(s.dailyLossRemaining)} remaining · resets daily`}
                   />
                   <Meter
                     icon={<TrendingUp size={11} />}
-                    label="Drawdown used"
+                    label="Overall drawdown"
                     value={`${fmtMoney(s.drawdown)} / ${fmtMoney(acc.maxDrawdown)}`}
                     pct={ddPct}
-                    danger
-                    sub={`${fmtMoney(s.drawdownRemaining)} remaining`}
+                    red
+                    sub={`${fmtMoney(s.drawdownRemaining)} remaining · all days`}
                   />
                   <Meter
                     icon={<Target size={11} />}
@@ -179,7 +195,8 @@ export default function Accounts({
                   {acc.tradeAccount ? <span>→ {acc.tradeAccount}</span> : <span>no trade link</span>}
                 </div>
                 <p className="mt-2 text-center text-[9px] font-medium text-faint">
-                  Use the upload icon to load this account's trade history from a CSV — it'll be tagged with {acc.tradeAccount || acc.name} and the whole app switches to it.
+                  Upload a CSV to load this account's history (tagged {acc.tradeAccount || acc.name}). Traded more since? Remove
+                  the old file first (trash icon), then upload the newer CSV — it replaces the old trades.
                 </p>
               </div>
             );
@@ -284,25 +301,25 @@ function Meter({
   label,
   value,
   pct,
-  danger,
+  red,
   sub,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   pct: number;
-  danger?: boolean;
+  red?: boolean;
   sub?: string;
 }) {
   return (
     <div>
       <div className="flex items-center gap-1.5 text-[9.5px] font-extrabold uppercase tracking-wider text-mut">
         {icon} {label}
-        <span className="tnum ml-auto normal-case tracking-normal text-faint">{value}</span>
+        <span className={cn("tnum ml-auto normal-case tracking-normal", red ? "text-loss" : "text-faint")}>{value}</span>
       </div>
       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-edge">
         <div
-          className={cn("h-full rounded-full transition-all", pct >= 0.85 && danger ? "bg-loss" : pct >= 0.6 && danger ? "bg-warn" : pct >= 1 ? "bg-brand" : "bg-gain")}
+          className={cn("h-full rounded-full transition-all", red ? "bg-loss" : pct >= 1 ? "bg-brand" : "bg-gain")}
           style={{ width: `${Math.min(100, pct * 100)}%` }}
         />
       </div>

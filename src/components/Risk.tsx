@@ -80,9 +80,10 @@ export default function Risk({ trades }: { trades: Trade[] }) {
               />
             </div>
             <div className="mt-3 flex items-center justify-between text-[10px] font-bold">
-              <span className="text-faint">Loss today</span>
+              <span className="text-faint">Daily drawdown (today's losses only)</span>
               <span className="tnum text-loss">-{fmtMoney(report.todayLoss)}</span>
             </div>
+            <p className="mt-0.5 text-[9px] font-semibold text-faint">Resets every day — only this day's losses count.</p>
           </div>
 
           {/* stats */}
@@ -92,7 +93,7 @@ export default function Risk({ trades }: { trades: Trade[] }) {
             <StatBox icon={<Briefcase size={13} />} label="1% risk rule" value={fmtMoney(report.riskPerTrade)} sub="per trade max" tone="brand" />
             <StatBox
               icon={<ShieldAlert size={13} />}
-              label="Daily remaining"
+              label="Daily drawdown left"
               value={fmtMoney(Math.max(0, (limit?.dailyLossLimit ?? 0) - report.todayLoss))}
               sub="before breach"
               tone={report.riskUsed >= 0.6 ? "loss" : "gain"}
