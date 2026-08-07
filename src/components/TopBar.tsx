@@ -1,4 +1,5 @@
-import { Menu, Moon, Sun, Sparkles, Settings2, Bell, Lock } from "lucide-react";
+import { Menu, Moon, Sun, Sparkles, Lock } from "lucide-react";
+import { SelectBox } from "./ui";
 
 export default function TopBar({
   onMenu,
@@ -8,6 +9,9 @@ export default function TopBar({
   onLock,
   syncLabel,
   pageLabel,
+  accounts,
+  account,
+  onAccountChange,
 }: {
   onMenu: () => void;
   dark: boolean;
@@ -16,6 +20,9 @@ export default function TopBar({
   onLock: () => void;
   syncLabel: string;
   pageLabel: string;
+  accounts: { value: string; label: string }[];
+  account: string;
+  onAccountChange: (v: string) => void;
 }) {
   return (
     <header className="themed sticky top-0 z-30 flex items-center gap-3 border-b border-edge bg-surface/80 px-4 py-3 backdrop-blur-xl sm:px-6">
@@ -38,6 +45,12 @@ export default function TopBar({
       </div>
 
       <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+        <SelectBox
+          value={account}
+          onChange={onAccountChange}
+          options={accounts}
+          className="w-[130px] sm:w-[170px]"
+        />
         <button
           onClick={onInsights}
           className="brand-gradient group flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[11.5px] font-bold text-white shadow-[0_6px_18px_-6px_var(--brand-ring)] transition-all hover:-translate-y-px hover:shadow-[0_10px_24px_-8px_var(--brand-ring)] active:translate-y-0 active:scale-95"
@@ -61,19 +74,6 @@ export default function TopBar({
           <span className="block transition-transform duration-500 group-hover:rotate-45">
             {dark ? <Sun size={15} /> : <Moon size={15} />}
           </span>
-        </button>
-        <button
-          className="relative hidden rounded-xl border border-edge bg-panel p-2 text-mut transition-all hover:border-brand/40 hover:text-brand sm:block"
-          aria-label="Notifications"
-        >
-          <Bell size={15} />
-          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand ring-2 ring-panel" />
-        </button>
-        <button
-          className="hidden rounded-xl border border-edge bg-panel p-2 text-mut transition-all hover:border-brand/40 hover:text-brand sm:block"
-          aria-label="Settings"
-        >
-          <Settings2 size={15} />
         </button>
       </div>
     </header>

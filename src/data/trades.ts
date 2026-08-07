@@ -629,14 +629,16 @@ export function parseMT5DetailedReport(text: string): MT5Report {
  * Auto-detects the CSV flavor and parses it:
  * 1. MT5 detailed report (Positions/Deals/Results)  2. simple MT5 export
  * 3. Nexora journal CSV (date,symbol,side,...)
+ * Pass `accountName` to stamp every imported trade with that account.
  */
-export function parseImportFile(text: string): ImportResult {
+export function parseImportFile(text: string, accountName?: string): ImportResult {
+  const stamp = (list: Trade[]) => (accountName ? list.map((t) => ({ ...t, account: accountName })) : list);
   const report = parseMT5DetailedReport(text);
-  if (report.trades.length) return { trades: report.trades, report };
+  if (report.trades.length) return { trades: stamp(report.trades), report };
   const mt5 = parseMT5CSV(text);
-  if (mt5.length) return { trades: mt5, report: null };
+  if (mt5.length) return { trades: stamp(mt5), report: null };
   const simple = parseTradesCSV(text);
-  return { trades: simple, report: null };
+  return { trades: stamp(simple), report: null };
 }
 
 export function sampleCSV(): string {

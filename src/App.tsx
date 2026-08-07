@@ -40,7 +40,7 @@ import Risk from "./components/Risk";
 import Settings from "./components/Settings";
 import { Reveal, Seg } from "./components/ui";
 import { canUseVault, lockVault, migrateLegacy, trySessionUnlock, vaultExists, vaultGet, vaultSet } from "./lib/vault";
-import { generateOpenPositions } from "./lib/risk";
+import { generateOpenPositions, SEED_ACCOUNTS } from "./lib/risk";
 import { fmtMoney, fmtPct } from "./lib/format";
 import { cn } from "./utils/cn";
 
@@ -425,6 +425,10 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   const [detail, setDetail] = useState<Trade | null>(null);
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [activeAccount, setActiveAccount] = useState<string>(
+    () => vaultGet<{ activeAccount?: string }>("settings", {}).activeAccount ?? "All"
+  );
+  const [accountsVersion, setAccountsVersion] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<number>(0);
   const [syncLabel] = useState(() =>
@@ -447,25 +451,69 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
     toastTimer.current = window.setTimeout(() => setToast(null), 3200);
   };
 
-  const { current, previous } = useMemo(() => splitByFilters(trades, filters), [trades, filters]);
+  const changeAccount = (acc: string) => {
+    setActiveAccount(acc);
+    const settings = vaultGet<{ name?: string; activeAccount?: string }>("settings", {});
+    vaultSet("settings", { ...settings, activeAccount: acc });
+  };
+
+  const importTrades = useCallback(
+    (list: Trade[], accountName: string, sourceName: string) => {
+      if (!list.length) {
+        showToast("No valid rows found — expected an MT5 report or date,symbol,side,pnl CSV", "loss");
+        return;
+      }
+      setTrades((prev) => {
+        const seen = new Set(prev.map((t) => t.id));
+        return [...prev, ...list.filter((t) => !seen.has(t.id))];
+      });
+      changeAccount(accountName);
+      showToast(`Imported ${list.length} trades into ${accountName} (${sourceName})`, "gain");
+    },
+    []
+  );
+
+  const scopedTrades = useMemo(
+    () => (activeAccount === "All" ? trades : trades.filter((t) => t.account === activeAccount)),
+    [trades, activeAccount]
+  );
+  const { current, previous } = useMemo(() => splitByFilters(scopedTrades, filters), [scopedTrades, filters]);
   const k = useMemo(() => withRisk(computeKpis(current), current), [current]);
   const prevK = useMemo(() => (previous.length ? computeKpis(previous) : null), [previous]);
   const spark = useMemo(() => sparkDaily(current), [current]);
   const cum = useMemo(() => cumSeries(current), [current]);
-  const bal = useMemo(() => balanceSeries(trades), [trades]);
+  const accSettings = vaultGet<{ name?: string; customAccounts?: boolean }>("settings", {});
+  const startCapital = useMemo(() => {
+    const accounts = vaultGet("accounts", SEED_ACCOUNTS);
+    if (activeAccount !== "All") {
+      const match = accounts.find((a) => (a.tradeAccount || a.name) === activeAccount);
+      if (match) return match.balance;
+    }
+    if (accSettings.customAccounts) return accounts.reduce((s, a) => s + a.balance, 0) || 25000;
+    return 25000;
+  }, [activeAccount, accSettings.customAccounts]);
+  const bal = useMemo(() => balanceSeries(scopedTrades, startCapital), [scopedTrades, startCapital]);
   const wd = useMemo(() => weekdaySeries(current), [current]);
   const donut = useMemo(() => donutData(k), [k]);
   const scores = useMemo(() => radarScores(k), [k]);
   const ins = useMemo(() => insights(current, k), [current, k]);
   const calTrades = useMemo(
     () =>
-      trades.filter(
+      scopedTrades.filter(
         (t) =>
           (filters.strategy === "All" || t.strategy === filters.strategy) &&
           (filters.account === "All" || t.account === filters.account)
       ),
-    [trades, filters.strategy, filters.account]
+    [scopedTrades, filters.strategy, filters.account]
   );
+
+  const accountOptions = useMemo(() => {
+    const names = vaultGet("accounts", SEED_ACCOUNTS).map((a) => a.tradeAccount || a.name);
+    return [
+      { value: "All", label: "All accounts" },
+      ...[...new Set(names)].map((n) => ({ value: n, label: n })),
+    ];
+  }, [accountsVersion, activeAccount]);
 
   const handleFile = useCallback((file: File) => {
     const reader = new FileReader();
@@ -560,7 +608,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
           <>
             <Reveal>
               <CommandCenter
-                trades={trades}
+                trades={scopedTrades}
                 bal={bal}
                 onImport={() => fileRef.current?.click()}
                 onNavigate={handleNavigate}
@@ -573,7 +621,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
                 filters={filters}
                 onChange={(f) => setFilters((prev) => ({ ...prev, ...f }))}
                 strategies={[...STRATEGIES]}
-                accounts={[...ACCOUNTS]}
+                accounts={controlAccounts}
                 onImport={() => fileRef.current?.click()}
                 onExport={handleExport}
                 onSample={handleSample}
@@ -632,7 +680,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
                 filters={filters}
                 onChange={(f) => setFilters((prev) => ({ ...prev, ...f }))}
                 strategies={[...STRATEGIES]}
-                accounts={[...ACCOUNTS]}
+                accounts={controlAccounts}
                 onImport={() => fileRef.current?.click()}
                 onExport={handleExport}
                 onSample={handleSample}
@@ -652,7 +700,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
                 filters={filters}
                 onChange={(f) => setFilters((prev) => ({ ...prev, ...f }))}
                 strategies={[...STRATEGIES]}
-                accounts={[...ACCOUNTS]}
+                accounts={controlAccounts}
                 onImport={() => fileRef.current?.click()}
                 onExport={handleExport}
                 onSample={handleSample}
@@ -679,19 +727,19 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
       case "reports":
         return (
           <Reveal>
-            <Reports trades={trades} />
+            <Reports trades={scopedTrades} />
           </Reveal>
         );
       case "playbooks":
         return (
           <Reveal>
-            <Playbooks trades={trades} />
+            <Playbooks trades={scopedTrades} />
           </Reveal>
         );
       case "replay":
         return (
           <Reveal>
-            <Replay trades={trades} />
+            <Replay trades={scopedTrades} />
           </Reveal>
         );
       case "calendar":
@@ -703,13 +751,17 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
       case "accounts":
         return (
           <Reveal>
-            <Accounts trades={trades} />
+            <Accounts
+              trades={scopedTrades}
+              onImportTrades={importTrades}
+              onAccountsChanged={() => setAccountsVersion((v) => v + 1)}
+            />
           </Reveal>
         );
       case "risk":
         return (
           <Reveal>
-            <Risk trades={trades} />
+            <Risk trades={scopedTrades} />
           </Reveal>
         );
       case "settings":
@@ -743,6 +795,10 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   };
 
   const settingsName = vaultGet<{ name?: string }>("settings", {}).name?.trim() || "Daniel";
+  const controlAccounts = useMemo(
+    () => [...new Set([...ACCOUNTS, ...accountOptions.slice(1).map((o) => o.value)])],
+    [accountOptions]
+  );
 
   return (
     <div className="flex min-h-screen bg-surface">
@@ -764,6 +820,9 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
           onLock={onLock}
           syncLabel={syncLabel}
           pageLabel={pageTitle[page]}
+          accounts={accountOptions}
+          account={activeAccount}
+          onAccountChange={changeAccount}
         />
 
         <main className="mx-auto w-full max-w-[1520px] flex-1 space-y-4 p-4 sm:p-5">{renderPage()}</main>
@@ -774,7 +833,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
               Nexora · journal analytics for futures &amp; FX traders · data is simulated, CSV import/export is live
             </span>
             <span className="tnum">
-              {trades.length} trades on file · {current.length} in view
+              {scopedTrades.length} of {trades.length} trades · {current.length} in view
             </span>
           </div>
         </footer>

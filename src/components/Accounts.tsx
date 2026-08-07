@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Wallet, Plus, Pencil, X, TrendingUp, ShieldAlert, Target, CalendarDays } from "lucide-react";
+import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { Wallet, Plus, Pencil, X, TrendingUp, ShieldAlert, Target, CalendarDays, Upload } from "lucide-react";
 import { Card, CardHead } from "./ui";
 import type { Trade } from "../data/trades";
 import { accountStats, SEED_ACCOUNTS, type AccountDef } from "../lib/risk";
@@ -15,13 +15,38 @@ const num = (v: string) => {
   return isFinite(n) ? n : 0;
 };
 
-export default function Accounts({ trades }: { trades: Trade[] }) {
+export default function Accounts({
+  trades,
+  onImportTrades,
+  onAccountsChanged,
+}: {
+  trades: Trade[];
+  onImportTrades: (list: Trade[], accountName: string, sourceName: string) => void;
+  onAccountsChanged: () => void;
+}) {
   const [accounts, setAccounts] = useState<AccountDef[]>(() => vaultGet("accounts", SEED_ACCOUNTS));
   const [editing, setEditing] = useState<AccountDef | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const pendingAccRef = useRef<AccountDef | null>(null);
 
   const persist = (next: AccountDef[]) => {
     setAccounts(next);
     vaultSet("accounts", next);
+    const settings = vaultGet<{ name?: string; customAccounts?: boolean }>("settings", {});
+    vaultSet("settings", { ...settings, customAccounts: true });
+    onAccountsChanged();
+  };
+
+  const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    const acc = pendingAccRef.current;
+    if (!f || !acc) return;
+    const text = await f.text();
+    const { parseImportFile } = await import("../data/trades");
+    const link = acc.tradeAccount || acc.name;
+    const { trades: parsed } = parseImportFile(text, link);
+    onImportTrades(parsed, link, f.name);
   };
 
   const stats = useMemo(
@@ -62,13 +87,26 @@ export default function Accounts({ trades }: { trades: Trade[] }) {
                       {fmtMoney(acc.size)} · {s.tradingDays} trading days
                     </p>
                   </div>
-                  <button
-                    onClick={() => setEditing({ ...acc })}
-                    className="ml-auto rounded-lg border border-edge bg-panel p-1.5 text-faint transition-colors hover:border-brand/40 hover:text-brand"
-                    aria-label="Edit account"
-                  >
-                    <Pencil size={12} />
-                  </button>
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <button
+                      onClick={() => {
+                        pendingAccRef.current = acc;
+                        fileRef.current?.click();
+                      }}
+                      className="rounded-lg border border-edge bg-panel p-1.5 text-faint transition-colors hover:border-brand/40 hover:text-brand"
+                      aria-label="Import history CSV for this account"
+                      title={`Import history CSV → ${acc.tradeAccount || acc.name}`}
+                    >
+                      <Upload size={12} />
+                    </button>
+                    <button
+                      onClick={() => setEditing({ ...acc })}
+                      className="rounded-lg border border-edge bg-panel p-1.5 text-faint transition-colors hover:border-brand/40 hover:text-brand"
+                      aria-label="Edit account"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mt-4 grid grid-cols-2 gap-2">
@@ -115,10 +153,21 @@ export default function Accounts({ trades }: { trades: Trade[] }) {
                   </span>
                   {acc.tradeAccount ? <span>→ {acc.tradeAccount}</span> : <span>no trade link</span>}
                 </div>
+                <p className="mt-2 text-center text-[9px] font-medium text-faint">
+                  Use the upload icon to load this account's trade history from a CSV — it'll be tagged with {acc.tradeAccount || acc.name} and the whole app switches to it.
+                </p>
               </div>
             );
           })}
         </div>
+
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".csv,text/csv"
+          className="hidden"
+          onChange={onFile}
+        />
       </Card>
 
       {editing && (
