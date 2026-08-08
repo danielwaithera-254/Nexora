@@ -425,6 +425,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   });
   const [filters, setFilters] = useState<Filters>({ range: "90D", strategy: "All", account: "All" });
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [page, setPage] = useState<PageId>("dashboard");
   const [detail, setDetail] = useState<Trade | null>(null);
@@ -828,6 +829,8 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
         onNavigate={handleNavigate}
         active={page}
         name={settingsName}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((c) => !c)}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">

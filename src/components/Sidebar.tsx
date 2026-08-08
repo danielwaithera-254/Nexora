@@ -15,6 +15,8 @@ import {
   ShieldAlert,
   Settings,
   X,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "../utils/cn";
 
@@ -73,12 +75,16 @@ export default function Sidebar({
   onNavigate,
   active,
   name,
+  collapsed,
+  onToggleCollapsed,
 }: {
   open: boolean;
   onClose: () => void;
   onNavigate: (id: PageId) => void;
   active: PageId;
   name: string;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }) {
   return (
     <>
@@ -92,15 +98,21 @@ export default function Sidebar({
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[240px] flex-col text-white transition-transform duration-300",
-          "bg-[linear-gradient(168deg,#1e0b45_0%,#4c1d95_55%,#7c3aed_100%)]",
+          "fixed inset-y-0 left-0 z-50 flex flex-col text-white transition-all duration-300",
+          "bg-[#2e1065]",
           "shadow-[6px_0_32px_-12px_rgba(30,11,69,0.55)]",
+          collapsed ? "w-[240px] lg:w-[64px]" : "w-[240px] lg:w-[240px]",
           open ? "translate-x-0" : "-translate-x-full",
           "lg:sticky lg:top-0 lg:h-screen lg:translate-x-0"
         )}
       >
         {/* brand */}
-        <div className="flex items-center gap-2.5 px-5 pb-6 pt-6">
+        <div
+          className={cn(
+            "flex items-center gap-2.5 px-5 pb-6 pt-6",
+            collapsed && "lg:flex-col lg:gap-3 lg:px-0 lg:pb-4"
+          )}
+        >
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-white shadow-[0_4px_14px_-4px_rgba(0,0,0,0.45)]">
             <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
               <path
@@ -113,39 +125,54 @@ export default function Sidebar({
               <circle cx="26" cy="7" r="3" fill="#a855f7" />
             </svg>
           </span>
-          <div className="min-w-0">
-            <p className="font-display text-[18px] font-bold leading-none tracking-[-0.02em] text-white">
-              Nex<span className="text-[#d8b4fe]">ora</span>
-            </p>
-            <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.18em] text-white/55">
-              Private Trading Journal
-            </p>
+          {!collapsed && (
+            <div className="min-w-0">
+              <p className="font-display text-[18px] font-bold leading-none tracking-[-0.02em] text-white">
+                Nex<span className="text-[#d8b4fe]">ora</span>
+              </p>
+              <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.18em] text-white/55">
+                Private Trading Journal
+              </p>
+            </div>
+          )}
+          <div className={cn("flex items-center", collapsed ? "lg:flex-col lg:gap-2" : "ml-auto")}>
+            <button
+              className="hidden rounded-md p-1 text-white/60 hover:bg-white/10 hover:text-white lg:grid"
+              onClick={onToggleCollapsed}
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            </button>
+            <button
+              className="rounded-md p-1 text-white/60 hover:bg-white/10 hover:text-white lg:hidden"
+              onClick={onClose}
+            >
+              <X size={16} />
+            </button>
           </div>
-          <button
-            className="ml-auto rounded-md p-1 text-white/60 hover:bg-white/10 hover:text-white lg:hidden"
-            onClick={onClose}
-          >
-            <X size={16} />
-          </button>
         </div>
 
         {/* nav */}
         <nav className="mt-6 flex-1 space-y-1 overflow-y-auto px-3 pb-4">
-          <p className="px-3 pb-2 text-[9px] font-bold uppercase tracking-[0.16em] text-white/40">
-            Workspace
-          </p>
+          {!collapsed && (
+            <p className="px-3 pb-2 text-[9px] font-bold uppercase tracking-[0.16em] text-white/40">
+              Workspace
+            </p>
+          )}
           {NAV.map((item) => {
             const Icon = item.icon;
             const isActive = active === item.id;
             return (
               <button
                 key={item.id}
+                title={collapsed ? item.name : undefined}
                 onClick={() => {
                   onNavigate(item.id);
                   onClose();
                 }}
                 className={cn(
                   "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[12.5px] font-semibold transition-all duration-200",
+                  collapsed && "lg:justify-center lg:px-0",
                   isActive
                     ? "bg-white text-[#5b21b6] shadow-[0_6px_16px_-6px_rgba(0,0,0,0.45)]"
                     : "text-white/70 hover:bg-white/[0.13] hover:text-white"
@@ -160,8 +187,8 @@ export default function Sidebar({
                       : "text-white/50 group-hover:translate-x-0.5 group-hover:text-white"
                   )}
                 />
-                <span className="truncate">{item.name}</span>
-                {item.badge && (
+                {!collapsed && <span className="truncate">{item.name}</span>}
+                {!collapsed && item.badge && (
                   <span
                     className={cn(
                       "ml-auto rounded px-1.5 py-0.5 text-[8.5px] font-extrabold tracking-wider",
@@ -179,12 +206,14 @@ export default function Sidebar({
         {/* settings */}
         <div className="border-t border-white/12 px-3 py-3">
           <button
+            title={collapsed ? "Settings" : undefined}
             onClick={() => {
               onNavigate("settings");
               onClose();
             }}
             className={cn(
               "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[12.5px] font-semibold transition-all duration-200",
+              collapsed && "lg:justify-center lg:px-0",
               active === "settings"
                 ? "bg-white text-[#5b21b6] shadow-[0_6px_16px_-6px_rgba(0,0,0,0.45)]"
                 : "text-white/70 hover:bg-white/[0.13] hover:text-white"
@@ -197,18 +226,25 @@ export default function Sidebar({
                 active === "settings" ? "text-[#7c3aed]" : "text-white/50 group-hover:rotate-45 group-hover:text-white"
               )}
             />
-            <span className="truncate">Settings</span>
+            {!collapsed && <span className="truncate">Settings</span>}
           </button>
 
           {/* footer user */}
-          <div className="mt-3 flex items-center gap-3 border-t border-white/12 px-1 pt-3">
+          <div
+            className={cn(
+              "mt-3 flex items-center gap-3 border-t border-white/12 px-1 pt-3",
+              collapsed && "lg:justify-center lg:px-0"
+            )}
+          >
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-[11px] font-extrabold text-[#4c1d95]">
               {initials(name)}
             </span>
-            <div className="min-w-0">
-              <p className="truncate text-[12px] font-bold text-white">{name}</p>
-              <p className="text-[10px] text-white/55">Private vault · encrypted</p>
-            </div>
+            {!collapsed && (
+              <div className="min-w-0">
+                <p className="truncate text-[12px] font-bold text-white">{name}</p>
+                <p className="text-[10px] text-white/55">Private vault · encrypted</p>
+              </div>
+            )}
           </div>
         </div>
       </aside>
