@@ -87,6 +87,9 @@ interface Toast {
   tone: "gain" | "loss" | "brand";
 }
 
+/* Sentinel option value for the combined "Synced accounts" view in the account switcher */
+const SYNCED_OPTION = "__synced__";
+
 /* ------------------- command center (dashboard hero) ------------------- */
 
 const isoToday = () => new Date().toISOString().slice(0, 10);
@@ -525,10 +528,11 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   }, []);
 
   const accountOptions = useMemo(() => {
+    const allAccounts = vaultGet("accounts", SEED_ACCOUNTS);
     const tagToValue = new Map<string, string>();
     const tagSets = new Map<string, Set<string>>();
     const labels = new Map<string, string>();
-    for (const a of vaultGet("accounts", SEED_ACCOUNTS)) {
+    for (const a of allAccounts) {
       const value = a.tradeAccount || a.name;
       const set = tagSets.get(value) ?? new Set<string>();
       accountTagSet(a).forEach((t) => {
@@ -540,6 +544,12 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
     }
     const countFor = (tags: Set<string>) => trades.reduce((s, t) => s + (tags.has(t.account) ? 1 : 0), 0);
     const options: { value: string; label: string }[] = [];
+    const syncedIds = vaultGet<{ syncedAccounts?: string[] }>("settings", {}).syncedAccounts ?? [];
+    const syncedAccs = allAccounts.filter((a) => syncedIds.includes(a.id));
+    if (syncedAccs.length >= 2) {
+      const syncedTags = new Set(syncedAccs.flatMap((a) => [...accountTagSet(a)]));
+      options.push({ value: SYNCED_OPTION, label: `Synced accounts (${syncedAccs.length}) · ${countFor(syncedTags)}` });
+    }
     const seen = new Set<string>();
     for (const [value, tags] of tagSets) {
       seen.add(value);
@@ -562,6 +572,12 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   const scopedTrades = useMemo(() => {
     if (!effectiveAccount) return trades;
     const accounts = vaultGet("accounts", SEED_ACCOUNTS);
+    if (effectiveAccount === SYNCED_OPTION) {
+      const syncedIds = vaultGet<{ syncedAccounts?: string[] }>("settings", {}).syncedAccounts ?? [];
+      const sel = accounts.filter((a) => syncedIds.includes(a.id));
+      const tags = new Set(sel.flatMap((a) => [...accountTagSet(a)]));
+      return trades.filter((t) => tags.has(t.account));
+    }
     const acc = accounts.find((a) => (a.tradeAccount || a.name) === effectiveAccount);
     const tags = acc ? accountTagSet(acc) : new Set([effectiveAccount]);
     return trades.filter((t) => tags.has(t.account));
@@ -574,13 +590,20 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   const accSettings = vaultGet<{ name?: string; customAccounts?: boolean }>("settings", {});
   const startCapital = useMemo(() => {
     const accounts = vaultGet("accounts", SEED_ACCOUNTS);
+    if (effectiveAccount === SYNCED_OPTION) {
+      const syncedIds = vaultGet<{ syncedAccounts?: string[] }>("settings", {}).syncedAccounts ?? [];
+      const sum = accounts
+        .filter((a) => syncedIds.includes(a.id))
+        .reduce((s, a) => s + a.balance, 0);
+      return sum || 25000;
+    }
     if (effectiveAccount) {
       const match = accounts.find((a) => (a.tradeAccount || a.name) === effectiveAccount);
       if (match) return match.balance;
     }
     if (accSettings.customAccounts) return accounts.reduce((s, a) => s + a.balance, 0) || 25000;
     return 25000;
-  }, [effectiveAccount, accSettings.customAccounts]);
+  }, [effectiveAccount, accSettings.customAccounts, accountsVersion]);
   const bal = useMemo(() => balanceSeries(scopedTrades, startCapital), [scopedTrades, startCapital]);
   const wd = useMemo(() => weekdaySeries(current), [current]);
   const donut = useMemo(() => donutData(k), [k]);

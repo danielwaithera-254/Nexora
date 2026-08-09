@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
-import { Wallet, Plus, Pencil, X, TrendingUp, ShieldAlert, Target, CalendarDays, Upload, Trash2 } from "lucide-react";
+import { Wallet, Plus, Pencil, X, TrendingUp, ShieldAlert, Target, CalendarDays, Upload, Trash2, Link2 } from "lucide-react";
 import { Card, CardHead } from "./ui";
 import type { Trade } from "../data/trades";
 import { accountStats, accountTagSet, SEED_ACCOUNTS, type AccountDef } from "../lib/risk";
@@ -32,6 +32,9 @@ export default function Accounts({
   const [editing, setEditing] = useState<AccountDef | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const pendingAccRef = useRef<AccountDef | null>(null);
+  const [syncedIds, setSyncedIds] = useState<string[]>(
+    () => vaultGet<{ syncedAccounts?: string[] }>("settings", {}).syncedAccounts ?? []
+  );
 
   const persist = (next: AccountDef[]) => {
     const settings = vaultGet<{ name?: string; customAccounts?: boolean }>("settings", {});
@@ -42,6 +45,16 @@ export default function Accounts({
     setAccounts(list);
     vaultSet("accounts", list);
     vaultSet("settings", { ...settings, customAccounts: true });
+    onAccountsChanged();
+  };
+
+  const toggleSync = (id: string) => {
+    const settings = vaultGet<{ syncedAccounts?: string[] }>("settings", {});
+    const next = settings.syncedAccounts?.includes(id)
+      ? settings.syncedAccounts.filter((x) => x !== id)
+      : [...(settings.syncedAccounts ?? []), id];
+    setSyncedIds(next);
+    vaultSet("settings", { ...settings, syncedAccounts: next });
     onAccountsChanged();
   };
 
@@ -58,6 +71,12 @@ export default function Accounts({
     const n = trades.filter((t) => tags.includes(t.account)).length;
     if (!window.confirm(`Delete "${acc.name}"? This also removes ${n} trade${n === 1 ? "" : "s"} tagged to it.`)) return;
     persist(accounts.filter((a) => a.id !== acc.id));
+    if (syncedIds.includes(acc.id)) {
+      const settings = vaultGet<{ syncedAccounts?: string[] }>("settings", {});
+      const next = (settings.syncedAccounts ?? []).filter((x) => x !== acc.id);
+      setSyncedIds(next);
+      vaultSet("settings", { ...settings, syncedAccounts: next });
+    }
     if (n > 0) onDeleteTrades(tags);
     setEditing(null);
   };
@@ -87,6 +106,8 @@ export default function Accounts({
     [accounts, trades]
   );
 
+  const syncedCount = accounts.filter((a) => syncedIds.includes(a.id)).length;
+
   return (
     <div className="space-y-4">
       <Card>
@@ -104,10 +125,22 @@ export default function Accounts({
           }
         />
 
+        {syncedCount >= 2 && (
+          <div className="mx-4 mb-4 flex items-start gap-2.5 rounded-xl border border-brand/25 bg-brand-soft/40 px-3.5 py-2.5 sm:mx-5">
+            <Link2 size={13} className="mt-0.5 shrink-0 text-brand" />
+            <p className="text-[10.5px] font-semibold leading-relaxed text-ink">
+              <span className="font-extrabold text-brand">{syncedCount} accounts synced.</span> Pick{" "}
+              <span className="font-extrabold text-brand">"Synced accounts"</span> in the dashboard account switcher to view
+              their combined history. Unsync any account here anytime.
+            </p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-4 px-4 pb-5 sm:px-5 lg:grid-cols-3">
           {stats.map(({ acc, s }) => {
             const dayPct = acc.dailyLossLimit ? Math.min(1, Math.max(0, -s.todayPnl / acc.dailyLossLimit)) : 0;
             const ddPct = acc.maxDrawdown ? Math.min(1, s.drawdown / acc.maxDrawdown) : 0;
+            const isSynced = syncedIds.includes(acc.id);
             return (
               <div key={acc.id} className="sheen flex flex-col rounded-2xl border border-edge bg-panel2 p-4">
                 <div className="flex items-center gap-2">
@@ -186,6 +219,19 @@ export default function Accounts({
                     sub={s.payout >= 1 ? "Target reached — time to request a payout" : `${fmtMoney(acc.profitTarget * (1 - s.payout))} to go`}
                   />
                 </div>
+
+                <button
+                  onClick={() => toggleSync(acc.id)}
+                  className={cn(
+                    "mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border py-2 text-[9.5px] font-extrabold uppercase tracking-wider transition-all",
+                    isSynced
+                      ? "border-brand/40 bg-brand-soft text-brand"
+                      : "border-edge bg-panel text-faint hover:border-brand/30 hover:text-ink"
+                  )}
+                >
+                  <Link2 size={12} />
+                  {isSynced ? "Synced — click to unsync" : "Sync account"}
+                </button>
 
                 <div className="mt-3 flex items-center justify-between rounded-lg bg-panel px-2.5 py-1.5 text-[9.5px] font-semibold text-faint">
                   <span>{s.wins}W · {s.losses}L</span>
