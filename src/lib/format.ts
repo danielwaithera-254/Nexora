@@ -1,7 +1,8 @@
 export const fmtMoney = (v: number, opts?: { sign?: boolean; decimals?: number }) => {
   const { sign = false, decimals } = opts ?? {};
   const abs = Math.abs(v);
-  const dec = decimals ?? (abs < 100 && abs !== 0 ? 2 : 0);
+  const hasCents = Math.abs(v - Math.round(v)) > 1e-9;
+  const dec = decimals ?? (abs < 100 && abs !== 0 ? 2 : hasCents ? 2 : 0);
   const body = abs.toLocaleString("en-US", {
     minimumFractionDigits: dec,
     maximumFractionDigits: dec,

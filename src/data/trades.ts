@@ -298,7 +298,7 @@ export function parseMT5CSV(text: string): Trade[] {
 
     const commission = iCommission >= 0 ? parseFloat(c[iCommission]) || 0 : 0;
     const swap = iSwap >= 0 ? parseFloat(c[iSwap]) || 0 : 0;
-    const totalPnL = Math.round(profit + commission + swap);
+    const totalPnL = Math.round((profit + commission + swap) * 100) / 100;
     if (totalPnL === 0) continue; // skip breakeven / still open
 
     const typeRaw = (c[iType] || "").toLowerCase();
@@ -561,10 +561,11 @@ export function parseMT5DetailedReport(text: string): MT5Report {
       const typeRaw = (pick(posCols, row, "type") || "").toLowerCase();
       const side: Side = typeRaw === "buy" || typeRaw.includes("buy") ? "Long" : "Short";
       const pnl = Math.round(
-        mt5num(profitRaw) +
+        (mt5num(profitRaw) +
           mt5num(pick(posCols, row, "commission")) +
-          mt5num(pick(posCols, row, "swap"))
-      );
+          mt5num(pick(posCols, row, "swap"))) *
+          100
+      ) / 100;
       out.trades.push(
         toTrade(
           ts,
@@ -603,10 +604,11 @@ export function parseMT5DetailedReport(text: string): MT5Report {
       const order = pick(dealCols, row, "order") || "";
       const entryDeal = entries.get(order);
       const pnl = Math.round(
-        mt5num(pick(dealCols, row, "profit")) +
+        (mt5num(pick(dealCols, row, "profit")) +
           mt5num(pick(dealCols, row, "commission")) +
-          mt5num(pick(dealCols, row, "swap"))
-      );
+          mt5num(pick(dealCols, row, "swap"))) *
+          100
+      ) / 100;
       out.trades.push(
         toTrade(
           ts,

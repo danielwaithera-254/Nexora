@@ -82,7 +82,7 @@ export default function Mt5Bridge({
         const profit = parseFloat(d.Profit) || 0;
         const comm = parseFloat(d.Commission) || 0;
         const swap = parseFloat(d.Swap) || 0;
-        const totalPnL = Math.round(profit + comm + swap);
+        const totalPnL = Math.round((profit + comm + swap) * 100) / 100;
 
         const sideRaw = (d.Side ?? d.Type ?? "").toString().toLowerCase();
         let side: "Long" | "Short";
