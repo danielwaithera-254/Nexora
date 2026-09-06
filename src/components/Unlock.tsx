@@ -266,9 +266,23 @@ export default function Unlock({
               </button>
 
               {!isCreate && (
-                <p className="text-center text-[10px] font-medium text-faint">
-                  Forgot your passphrase? The vault cannot be recovered — that's what makes it private.
-                </p>
+                <div className="space-y-2">
+                  <p className="text-center text-[10px] font-medium text-faint">
+                    Forgot your passphrase? The vault cannot be recovered — that's what makes it private.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm("This will permanently delete all your encrypted data (trades, accounts, journal, playbooks, settings). This cannot be undone. Continue?")) {
+                        localStorage.removeItem("nexora-vault");
+                        window.location.reload();
+                      }
+                    }}
+                    className="text-center text-[10px] font-medium text-loss hover:text-loss/70 underline transition-colors"
+                  >
+                    Reset vault (delete all data)
+                  </button>
+                </div>
               )}
             </form>
           )}
