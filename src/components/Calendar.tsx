@@ -1,509 +1,252 @@
 import { useMemo, useState } from "react";
-import {
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  TrendingUp,
-  BarChart3,
-  Target,
-  ArrowUpRight,
-  ArrowDownRight,
-  Minus,
-} from "lucide-react";
 import { Card, CardHead } from "./ui";
-import type { Trade } from "../data/trades";
-import { fmtDate, fmtMoney, fmtPct } from "../lib/format";
 import { cn } from "../utils/cn";
+import { fmtMoney } from "../lib/format";
 
-const iso = (d: Date) => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
-};
-
-interface DayRec {
+interface Trade {
+  date: string;
   pnl: number;
-  count: number;
-  wins: number;
-  trades: number[]; // per-trade pnl, for the mini bars
+  symbol: string;
+  side: "Long" | "Short";
 }
 
-export default function Calendar({
-  trades,
-  onSelectTrade,
-  showDayDetail,
-}: {
-  trades: Trade[];
-  onSelectTrade?: (t: Trade) => void;
-  showDayDetail?: boolean;
-}) {
-  const [view, setView] = useState(() => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1);
-  });
-  const [sel, setSel] = useState<string | null>(null);
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
 
-  /* per-day aggregation with individual trade results */
-  const map = useMemo(() => {
-    const m = new Map<string, DayRec>();
-    for (const t of trades) {
-      const e = m.get(t.date) ?? { pnl: 0, count: 0, wins: 0, trades: [] };
-      e.pnl += t.pnl;
-      e.count++;
-      if (t.pnl > 0) e.wins++;
-      e.trades.push(t.pnl);
-      m.set(t.date, e);
-    }
-    return m;
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function getPnLCellClass(pnl: number, hasTrades: boolean): string {
+  if (!hasTrades) {
+    return "bg-surface-inner border border-surface-border";
+  }
+  if (pnl < 0) {
+    return "bg-[#E024C3]/15 border border-[#E024C3]/40";
+  }
+  const absPnl = Math.abs(pnl);
+  if (absPnl >= 5000) {
+    return "bg-purple-700/60 border border-purple-400";
+  }
+  if (absPnl >= 1000) {
+    return "bg-purple-900/55 border border-purple-500/50";
+  }
+  return "bg-purple-900/40 border border-purple-500/35";
+}
+
+export default function Calendar({ trades = [] }: { trades: Trade[] }) {
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+
+  const daysInMonth = useMemo(() => {
+    return new Date(currentYear, currentMonth + 1, 0).getDate();
+  }, [currentMonth, currentYear]);
+
+  const firstDayOfMonth = useMemo(() => {
+    return new Date(currentYear, currentMonth, 1).getDay();
+  }, [currentMonth, currentYear]);
+
+  const tradesByDate = useMemo(() => {
+    const map = new Map<string, Trade[]>();
+    trades.forEach((t) => {
+      const key = t.date;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(t);
+    });
+    return map;
   }, [trades]);
 
-  const monthKey = `${view.getFullYear()}-${view.getMonth()}`;
+  const getDayData = (day: number) => {
+    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const dayTrades = tradesByDate.get(dateStr) || [];
+    const pnl = dayTrades.reduce((s, t) => s + t.pnl, 0);
+    return { pnl, count: dayTrades.length, trades: dayTrades };
+  };
 
-  const { weeks, stats } = useMemo(() => {
-    const first = new Date(view);
-    const start = new Date(first);
-    start.setDate(1 - first.getDay());
-
-    let total = 0;
-    let count = 0;
-    let greenDays = 0;
-    let activeDays = 0;
-    let maxAbs = 1;
-    let tradeMaxAbs = 1;
-    let best: { date: string; pnl: number } | null = null;
-    let worst: { date: string; pnl: number } | null = null;
-    let streak = 0;
-    let maxStreak = 0;
-
-    const inMonth = (d: Date) => d.getMonth() === view.getMonth();
-
-    // stats pass over actual month days
-    const cursor = new Date(view.getFullYear(), view.getMonth(), 1);
-    const lastDay = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
-    for (let i = 0; i < lastDay; i++) {
-      const rec = map.get(iso(cursor));
-      if (rec) {
-        total += rec.pnl;
-        count += rec.count;
-        activeDays++;
-        maxAbs = Math.max(maxAbs, Math.abs(rec.pnl));
-        for (const p of rec.trades) tradeMaxAbs = Math.max(tradeMaxAbs, Math.abs(p));
-        if (rec.pnl > 0) {
-          greenDays++;
-          streak++;
-          maxStreak = Math.max(maxStreak, streak);
-        } else if (rec.pnl < 0) {
-          streak = 0;
-        }
-        if (!best || rec.pnl > best.pnl) best = { date: iso(cursor), pnl: rec.pnl };
-        if (!worst || rec.pnl < worst.pnl) worst = { date: iso(cursor), pnl: rec.pnl };
-      } else {
-        streak = 0;
-      }
-      cursor.setDate(cursor.getDate() + 1);
+  const weeks = useMemo(() => {
+    const result = [];
+    let day = 1;
+    const leadingBlanks = firstDayOfMonth;
+    
+    const week1 = Array.from({ length: 7 }, (_, i) => {
+      if (i < leadingBlanks) return null;
+      return day <= daysInMonth ? day++ : null;
+    });
+    result.push(week1);
+    
+    while (day <= daysInMonth) {
+      const week = Array.from({ length: 7 }, (_, i) => {
+        return day <= daysInMonth ? day++ : null;
+      });
+      result.push(week);
     }
+    
+    return result;
+  }, [currentMonth, currentYear, daysInMonth, firstDayOfMonth]);
 
-    // build 6x7 grid
-    const wks: { date: Date; inMonth: boolean }[][] = [];
-    const cur = new Date(start);
-    for (let w = 0; w < 6; w++) {
-      const row: { date: Date; inMonth: boolean }[] = [];
-      for (let d = 0; d < 7; d++) {
-        row.push({ date: new Date(cur), inMonth: inMonth(cur) });
-        cur.setDate(cur.getDate() + 1);
-      }
-      wks.push(row);
+  const weeklySummaries = useMemo(() => {
+    return weeks.map((week, i) => {
+      const weekTrades = week.filter((d) => d !== null).flatMap((d) => {
+        const data = getDayData(d!);
+        return data.trades;
+      });
+      const pnl = weekTrades.reduce((s, t) => s + t.pnl, 0);
+      const days = week.filter((d) => d !== null && getDayData(d!).count > 0).length;
+      return { pnl, days, weekNum: i + 1 };
+    });
+  }, [weeks, tradesByDate]);
+
+  const prevMonth = () => {
+    if (currentMonth === 0) {
+      setCurrentMonth(11);
+      setCurrentYear((y) => y - 1);
+    } else {
+      setCurrentMonth((m) => m - 1);
     }
+  };
 
-    return {
-      weeks: wks,
-      stats: {
-        total,
-        count,
-        greenDays,
-        activeDays,
-        maxAbs,
-        tradeMaxAbs,
-        best,
-        worst,
-        maxStreak,
-        dayWinRate: activeDays ? (greenDays / activeDays) * 100 : 0,
-      },
-    };
-  }, [view, map]);
-
-  const label = view.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-  const todayIso = iso(new Date());
+  const nextMonth = () => {
+    if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setCurrentYear((y) => y + 1);
+    } else {
+      setCurrentMonth((m) => m + 1);
+    }
+  };
 
   return (
-    <Card className="relative flex h-full flex-col">
-      {/* ambient corner tint */}
-      <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-[radial-gradient(circle,var(--brand-soft),transparent_70%)] opacity-70" />
-
+    <Card className="p-5 flex flex-col" glow>
       <CardHead
-        title="Trading Calendar"
-        info="Daily P&L across the month with weekly totals. Hover any day for the full session breakdown."
-        icon={<CalendarDays size={14} />}
+        title={`${MONTHS[currentMonth]} ${currentYear}`}
         right={
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setView(new Date(view.getFullYear(), view.getMonth() - 1, 1))}
-              className="rounded-lg border border-edge bg-panel2 p-1.5 text-mut transition-all hover:-translate-x-px hover:border-brand/40 hover:text-brand active:scale-90"
-              aria-label="Previous month"
-            >
-              <ChevronLeft size={13} />
+          <div className="flex items-center gap-2">
+            <button className="p-1 rounded hover:bg-surface-border text-faint hover:text-white transition-colors" onClick={prevMonth}>
+              <ChevronLeft className="w-4 h-4" />
             </button>
-            <span
-              key={monthKey}
-              className="cal-label min-w-[116px] text-center font-display text-[12.5px] font-bold text-ink"
-            >
-              {label}
-            </span>
-            <button
-              onClick={() => setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))}
-              className="rounded-lg border border-edge bg-panel2 p-1.5 text-mut transition-all hover:translate-x-px hover:border-brand/40 hover:text-brand active:scale-90"
-              aria-label="Next month"
-            >
-              <ChevronRight size={13} />
+            <button className="p-1 rounded hover:bg-surface-border text-faint hover:text-white transition-colors" onClick={nextMonth}>
+              <ChevronRight className="w-4 h-4" />
             </button>
-            <button
-              onClick={() => {
-                const d = new Date();
-                setView(new Date(d.getFullYear(), d.getMonth(), 1));
-              }}
-              className="ml-1 rounded-lg bg-brand-soft px-2.5 py-1 text-[10px] font-extrabold text-brand transition-all hover:bg-brand hover:text-white active:scale-95"
-            >
-              Today
+            <button className="px-2.5 py-1 text-xs rounded-md bg-surface-card border border-surface-border text-faint hover:border-gray-500 transition-colors">
+              This month
             </button>
           </div>
         }
+        icon={<CalendarDays className="w-4 h-4 text-neon-purple" />}
       />
 
-      {/* month stat chips */}
-      <div className="relative flex flex-wrap items-center gap-2 px-4 pb-3 sm:px-5">
-        <Chip
-          icon={stats.total >= 0 ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}
-          label="Month net"
-          value={fmtMoney(stats.total, { sign: true })}
-          tone={stats.total >= 0 ? "gain" : "loss"}
-        />
-        <Chip icon={<BarChart3 size={11} />} label="Trades" value={String(stats.count)} tone="brand" />
-        <Chip
-          icon={<Target size={11} />}
-          label="Day win"
-          value={fmtPct(stats.dayWinRate, 0)}
-          tone={stats.dayWinRate >= 50 ? "gain" : "brand"}
-          sub={`${stats.greenDays}/${stats.activeDays || 0} days`}
-        />
-        {stats.maxStreak >= 2 && (
-          <Chip icon={<TrendingUp size={11} />} label="Best run" value={`${stats.maxStreak} green`} tone="gain" />
-        )}
-
-        {/* heat legend */}
-        <span className="ml-auto hidden items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-faint sm:flex">
-          Loss
-          <span className="flex gap-[3px]">
-            {[70, 45, 22, 0, 22, 45, 70].map((a, i) => (
-              <span
-                key={i}
-                className="h-2 w-2 rounded-[3px]"
-                style={{
-                  background:
-                    a === 0
-                      ? "var(--edge2)"
-                      : i < 3
-                        ? `color-mix(in srgb, var(--loss) ${a}%, var(--panel))`
-                        : `color-mix(in srgb, var(--gain) ${a}%, var(--panel))`,
-                }}
-              />
-            ))}
-          </span>
-          Gain
-        </span>
+      {/* Monthly Stats */}
+      <div className="flex items-center justify-between gap-5 mb-4">
+        <div className="flex items-center gap-2 text-xs font-mono">
+          <span className="text-faint">Monthly Stats:</span>
+          <span className="text-neon-success font-bold">{fmtMoney(trades.reduce((s, t) => s + t.pnl, 0))}</span>
+          <span className="text-faint/60">|</span>
+          <span className="text-neon-violet">{trades.filter((t) => t.pnl > 0).length} Win Days · {trades.length} Trades</span>
+        </div>
       </div>
 
-      {/* grid */}
-      <div className="relative px-4 pb-4 sm:px-5">
-        <div className="overflow-x-auto pb-1 lg:overflow-visible">
-          <div className="min-w-[680px]">
-            <div className="grid grid-cols-[repeat(7,1fr)_76px] gap-1.5 pb-2">
-              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Week"].map((d) => (
-                <span
-                  key={d}
-                  className="text-center text-[9.5px] font-extrabold uppercase tracking-[0.14em] text-faint"
-                >
-                  {d}
-                </span>
-              ))}
-            </div>
+      {/* Weekday Headers */}
+      <div className="grid grid-cols-[repeat(7,1fr)_85px] bg-canvas/50 text-[10px] font-mono font-bold text-faint uppercase py-2 text-center border-b border-surface-border">
+        {WEEKDAYS.map((d) => <div key={d}>{d}</div>)}
+        <div className="border-l border-surface-border text-neon-violet">Weekly</div>
+      </div>
 
-            <div key={monthKey} className="space-y-1.5">
-              {weeks.map((row, wi) => {
-                const weekPnl = row.reduce(
-                  (s, c) => s + (c.inMonth ? map.get(iso(c.date))?.pnl ?? 0 : 0),
-                  0
-                );
-                const weekCount = row.reduce(
-                  (s, c) => s + (c.inMonth ? map.get(iso(c.date))?.count ?? 0 : 0),
-                  0
-                );
+      {/* Calendar Grid + Weekly Column */}
+      <div className="grid grid-cols-[repeat(7,1fr)_85px]">
+        {/* Day Cells */}
+        <div className="col-span-7 grid grid-cols-7 border-r border-surface-border">
+          {weeks.map((week, w) => 
+            week.map((day, d) => {
+              if (day === null) {
                 return (
-                  <div key={wi} className="grid grid-cols-[repeat(7,1fr)_76px] gap-1.5">
-                    {row.map((c) => {
-                      const key = iso(c.date);
-                      const rec = c.inMonth ? map.get(key) : undefined;
-                      const isToday = key === todayIso;
-                      const heat = rec ? Math.min(1, Math.abs(rec.pnl) / stats.maxAbs) : 0;
-                      return (
-                        <div
-                          key={key}
-                          onClick={showDayDetail && rec ? () => setSel(sel === key ? null : key) : undefined}
-                          style={c.inMonth ? { animationDelay: `${wi * 40 + c.date.getDay() * 18}ms` } : undefined}
-                          className={cn(
-                            "group relative h-[76px] rounded-xl border p-1.5 transition-all duration-200 ease-out",
-                            c.inMonth &&
-                              (showDayDetail && rec
-                                ? "cal-cell cursor-pointer hover:z-20 hover:-translate-y-1"
-                                : "cal-cell cursor-default hover:z-20 hover:-translate-y-1"),
-                            sel === key && "ring-2 ring-brand",
-                            !c.inMonth
-                              ? "border-transparent"
-                              : rec && rec.pnl > 0
-                                ? "border-gain/20 hover:border-gain/60"
-                                : rec && rec.pnl < 0
-                                  ? "border-loss/20 hover:border-loss/60"
-                                  : "border-edge2 bg-panel2 hover:border-edge",
-                            c.inMonth && "hover:shadow-[var(--shadow-lg)]"
-                          )}
-                        >
-                          {/* heat fill */}
-                          {rec && (
-                            <span
-                              className="pointer-events-none absolute inset-0 rounded-[11px] transition-opacity duration-200 group-hover:opacity-100"
-                              style={{
-                                opacity: 0.5 + heat * 0.5,
-                                background:
-                                  rec.pnl > 0
-                                    ? `color-mix(in srgb, var(--gain) ${6 + heat * 18}%, var(--panel))`
-                                    : rec.pnl < 0
-                                      ? `color-mix(in srgb, var(--loss) ${6 + heat * 18}%, var(--panel))`
-                                      : "transparent",
-                              }}
-                            />
-                          )}
-                          {isToday && (
-                            <span className="today-ring pointer-events-none absolute inset-0 rounded-xl" />
-                          )}
-
-                          <div className="relative flex h-full flex-col">
-                            <span
-                              className={cn(
-                                "flex items-center gap-1 text-[9.5px] font-bold",
-                                c.inMonth ? "text-mut" : "text-faint/40"
-                              )}
-                            >
-                              {c.date.getDate()}
-                              {isToday && <span className="h-1.5 w-1.5 rounded-full bg-brand" />}
-                            </span>
-                            {rec && (
-                              <>
-                                <p
-                                  className={cn(
-                                    "mt-0.5 font-display text-[12px] font-bold leading-none tnum",
-                                    rec.pnl > 0 ? "text-gain" : rec.pnl < 0 ? "text-loss" : "text-mut"
-                                  )}
-                                >
-                                  {fmtMoney(rec.pnl, { sign: true })}
-                                </p>
-
-                                <p className="mt-1 text-[8px] font-semibold text-faint/80 tnum">
-                                  {rec.count}t · {Math.round((rec.wins / rec.count) * 100)}%W
-                                </p>
-
-                                {/* per-trade mini bars */}
-                                <div className="mt-auto flex h-[18px] items-end gap-[2px]">
-                                  {rec.trades.slice(0, 8).map((p, i) => (
-                                    <span
-                                      key={i}
-                                      className="flex-1 origin-bottom rounded-t-[2px] transition-transform duration-200 group-hover:scale-y-125"
-                                      style={{
-                                        height: `${20 + (Math.abs(p) / stats.tradeMaxAbs) * 80}%`,
-                                        background: p >= 0 ? "var(--gain)" : "var(--loss)",
-                                        opacity: 0.85,
-                                      }}
-                                    />
-                                  ))}
-                                  {rec.trades.length > 8 && (
-                                    <span className="pb-[1px] text-[7.5px] font-extrabold text-faint">
-                                      +{rec.trades.length - 8}
-                                    </span>
-                                  )}
-                                </div>
-                              </>
-                            )}
-                          </div>
-
-                          {/* hover detail card */}
-                          {rec && (
-                            <div
-                              className={cn(
-                                "pointer-events-none absolute left-1/2 z-30 hidden w-44 -translate-x-1/2 rounded-xl border border-edge bg-panel/95 p-3 text-left shadow-[var(--shadow-lg)] backdrop-blur-md lg:group-hover:block",
-                                wi === 0 ? "top-full mt-2" : "bottom-full mb-2"
-                              )}
-                            >
-                              <p className="font-display text-[11px] font-bold text-ink">{fmtDate(key)}</p>
-                              <div className="mt-2 space-y-1.5 text-[10.5px]">
-                                <Row
-                                  label="Net"
-                                  value={fmtMoney(rec.pnl, { sign: true })}
-                                  cls={rec.pnl > 0 ? "text-gain" : rec.pnl < 0 ? "text-loss" : "text-mut"}
-                                />
-                                <Row label="Trades" value={`${rec.count}`} cls="text-ink" />
-                                <Row
-                                  label="Win rate"
-                                  value={fmtPct((rec.wins / rec.count) * 100, 0)}
-                                  cls="text-ink"
-                                />
-                                <Row
-                                  label="Best"
-                                  value={fmtMoney(Math.max(...rec.trades), { sign: true })}
-                                  cls="text-gain"
-                                />
-                                <Row
-                                  label="Worst"
-                                  value={fmtMoney(Math.min(...rec.trades))}
-                                  cls="text-loss"
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {/* week total */}
-                    <div
-                      style={{ animationDelay: `${wi * 40 + 130}ms` }}
-                      className={cn(
-                        "cal-cell flex h-[76px] flex-col items-center justify-center rounded-xl border border-edge2",
-                        "bg-gradient-to-br from-brand-soft/70 to-panel2",
-                        weekCount === 0 && "opacity-40"
-                      )}
-                    >
-                      {weekPnl > 0 ? (
-                        <ArrowUpRight size={11} className="mb-0.5 text-gain" />
-                      ) : weekPnl < 0 ? (
-                        <ArrowDownRight size={11} className="mb-0.5 text-loss" />
-                      ) : (
-                        <Minus size={11} className="mb-0.5 text-faint" />
-                      )}
-                      <span
-                        className={cn(
-                          "font-display text-[11.5px] font-bold leading-none tnum",
-                          weekPnl > 0 ? "text-gain" : weekPnl < 0 ? "text-loss" : "text-mut"
-                        )}
-                      >
-                        {fmtMoney(weekPnl, { sign: true })}
-                      </span>
-                      <span className="mt-1 text-[8.5px] font-semibold text-faint tnum">
-                        {weekCount} trades
-                      </span>
-                    </div>
-                  </div>
+                  <div key={`${w}-${d}`} className="h-28 bg-canvas/40 border-b border-r border-surface-border/50" />
                 );
-              })}
+              }
+
+              const data = getDayData(day);
+              const isToday = day === new Date().getDate() && currentMonth === new Date().getMonth() && currentYear === new Date().getFullYear();
+
+              const baseClasses = "h-28 p-1.5 border-b border-r border-surface-border relative group transition-all hover:bg-surface-border/30";
+              const cellClasses = getPnLCellClass(data.pnl, data.count > 0);
+
+              const specialClasses = isToday 
+                ? "ring-2 ring-neon-violet shadow-[var(--shadow-neon-pill)] bg-purple-950/30" 
+                : "";
+
+              return (
+                <div 
+                  key={`${w}-${d}`}
+                  className={cn(baseClasses, cellClasses, specialClasses, isToday && "z-10")}
+                >
+                  <div className="flex justify-between items-start">
+                    <span className={cn("text-[10px] font-bold", isToday ? "text-neon-violet" : "text-faint/50")}>
+                      {day}
+                    </span>
+                    {data.pnl > 0 && <Lock className="w-3 h-3 text-neon-success/70" />}
+                    {data.pnl < 0 && <Check className="w-3 h-3 text-neon-danger/60" />}
+                  </div>
+                  
+                  {data.count > 0 && (
+                    <div className="mt-2 text-center font-mono">
+                      <div className={cn("text-xs font-extrabold", data.pnl >= 0 ? "text-neon-success" : "text-neon-danger")}>
+                        {fmtMoney(Math.abs(data.pnl))}
+                      </div>
+                      <div className="text-[9px] text-faint">{data.count} trade{data.count > 1 ? "s" : ""}</div>
+                      <div className="text-[8px] text-faint/70">8:00 R · 0.00 T</div>
+                      <div className="text-[8px] text-neon-violet font-medium">PR: 50%</div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Weekly Summary Column */}
+        <div className="flex flex-col bg-canvas/50">
+          {weeklySummaries.map((week, i) => (
+            <div 
+              key={i}
+              className={cn(
+                "h-28 flex flex-col items-center justify-center border-b border-surface-border p-2 text-center",
+                i % 2 === 0 ? "bg-purple-950/20 border-purple-500/20" : ""
+              )}
+            >
+              <span className="text-[9px] text-faint uppercase tracking-wider">Week {week.weekNum}</span>
+              <div className={cn("text-sm font-bold mt-1", week.pnl >= 0 ? "text-neon-success" : "text-neon-danger")}>
+                {fmtMoney(week.pnl)}
+              </div>
+              <span className="text-[8px] text-faint/70">{week.days} days active</span>
             </div>
-          </div>
+          ))}
         </div>
       </div>
 
-      {/* selected day detail */}
-      {showDayDetail && sel && (
-        <div className="relative border-t border-edge2 px-4 py-4 sm:px-5">
-          <div className="mb-2.5 flex items-center gap-2">
-            <h4 className="font-display text-[13px] font-bold text-ink">{fmtDate(sel)}</h4>
-            <button
-              onClick={() => setSel(null)}
-              className="ml-auto rounded-lg border border-edge bg-panel2 px-2.5 py-1 text-[10px] font-bold text-faint transition-colors hover:text-ink"
-            >
-              Close
-            </button>
-          </div>
-          {(() => {
-            const dayTrades = trades.filter((t) => t.date === sel);
-            if (!dayTrades.length) {
-              return <p className="text-[11px] font-bold text-faint">No trades on this day.</p>;
-            }
-            return (
-              <div className="space-y-1">
-                {dayTrades.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => onSelectTrade?.(t)}
-                    className="flex w-full items-center gap-3 rounded-xl border border-edge bg-panel2 px-3 py-2 text-left transition-colors hover:border-brand/40"
-                  >
-                    <span className="w-16 shrink-0 rounded-md bg-brand-soft px-1.5 py-0.5 text-center font-display text-[10.5px] font-bold text-brand">
-                      {t.symbol}
-                    </span>
-                    <span className={cn("w-12 shrink-0 text-[9.5px] font-extrabold uppercase", t.side === "Long" ? "text-gain" : "text-loss")}>
-                      {t.side}
-                    </span>
-                    <span className="truncate text-[10.5px] font-semibold text-faint">{t.strategy}</span>
-                    <span className="ml-auto hidden text-[10px] font-semibold text-faint sm:block">{t.session}</span>
-                    <span className={cn("tnum w-16 shrink-0 text-right font-display text-[11.5px] font-bold", t.pnl >= 0 ? "text-gain" : "text-loss")}>
-                      {fmtMoney(t.pnl, { sign: true })}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            );
-          })()}
+      {/* Footer Legend */}
+      <div className="mt-4 pt-3 border-t border-surface-border flex items-center justify-between text-xs text-faint">
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded bg-purple-900/40 border border-purple-500/35 inline-block" />
+            Light P&L
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded bg-purple-900/55 border border-purple-500/50 inline-block" />
+            Medium P&L
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded bg-purple-700/60 border border-purple-400 inline-block" />
+            High P&L
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded bg-[#E024C3]/20 border border-[#E024C3]/40 inline-block" />
+            Drawdown
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded bg-surface-inner border border-surface-border inline-block" />
+            No Trades
+          </span>
         </div>
-      )}
+        <span className="text-neon-violet font-medium cursor-pointer hover:underline">Full Month Breakdown →</span>
+      </div>
     </Card>
-  );
-}
-
-function Row({ label, value, cls }: { label: string; value: string; cls: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-mut">{label}</span>
-      <span className={cn("font-bold tnum", cls)}>{value}</span>
-    </div>
-  );
-}
-
-function Chip({
-  icon,
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  sub?: string;
-  tone: "gain" | "loss" | "brand" | "warn";
-}) {
-  const map = {
-    gain: "bg-gain-soft text-gain ring-gain/15",
-    loss: "bg-loss-soft text-loss ring-loss/15",
-    brand: "bg-brand-soft text-brand ring-brand/15",
-    warn: "bg-warn-soft text-warn ring-warn/15",
-  };
-  return (
-    <span
-      className={cn(
-        "flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 ring-1 transition-transform duration-200 hover:-translate-y-px",
-        map[tone]
-      )}
-    >
-      {icon}
-      <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-75">{label}</span>
-      <span className="font-display text-[12.5px] font-bold tnum">{value}</span>
-      {sub && <span className="text-[9.5px] font-semibold opacity-70 tnum">{sub}</span>}
-    </span>
   );
 }

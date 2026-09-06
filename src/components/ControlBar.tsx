@@ -1,78 +1,65 @@
-import { Filter, Download, RotateCcw, FileDown } from "lucide-react";
-import { RANGES, type Filters, type RangeKey } from "../lib/metrics";
-import { Seg, SelectBox } from "./ui";
+import { cn } from "../utils/cn";
+import { Seg } from "./ui";
+import { X, CalendarDays, RefreshCw } from "lucide-react";
 
-export default function ControlBar({
-  filters,
-  onChange,
-  strategies,
-  accounts,
-  onExport,
-  onSample,
-  count,
-}: {
-  filters: Filters;
-  onChange: (f: Partial<Filters>) => void;
+type ControlBarProps = {
+  filters: { range: string; strategy: string; account: string };
+  onChange: (patch: Partial<{ range: string; strategy: string; account: string }>) => void;
+  dirty: boolean;
   strategies: string[];
   accounts: string[];
-  onExport: () => void;
-  onSample: () => void;
-  count: number;
-}) {
-  const dirty = filters.strategy !== "All" || filters.account !== "All" || filters.range !== "90D";
+};
+
+export default function ControlBar({ filters, onChange, dirty, strategies, accounts }: ControlBarProps) {
   return (
-    <div className="sheen themed flex flex-wrap items-center gap-2 rounded-2xl border border-edge bg-panel px-3 py-2.5 shadow-[var(--shadow)]">
-      <span className="flex items-center gap-1.5 rounded-lg bg-brand-soft px-2 py-1 text-[10.5px] font-extrabold uppercase tracking-wider text-brand">
-        <Filter size={11} />
-        Filters
-      </span>
+    <div className="flex flex-wrap items-center gap-2.5 px-4 py-3 border-b border-surface-border bg-surface-subtle/50">
+      <div className="flex items-center gap-2 text-xs text-faint">
+        <span className="font-medium">Period:</span>
+        <Seg
+          options={[
+            { key: "today", label: "Today" },
+            { key: "week", label: "7d" },
+            { key: "month", label: "30d" },
+            { key: "all", label: "All" },
+          ]}
+          value={filters.range}
+          onChange={(v) => onChange({ range: v })}
+        />
+      </div>
 
-      <Seg
-        options={RANGES.map((r) => ({ key: r.key, label: r.label }))}
-        value={filters.range}
-        onChange={(v: RangeKey) => onChange({ range: v })}
-      />
+      <div className="flex items-center gap-2 text-xs text-faint">
+        <span className="font-medium">Strategy:</span>
+        <select
+          value={filters.strategy}
+          onChange={(e) => onChange({ strategy: e.target.value })}
+          className="rounded-lg bg-surface-card border border-surface-border py-1 px-2 text-xs font-medium text-white outline-none transition-colors hover:border-gray-500 focus:border-neon-purple"
+        >
+          <option value="All">All</option>
+          {strategies.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
 
-      <SelectBox
-        value={filters.strategy}
-        onChange={(v) => onChange({ strategy: v })}
-        options={[{ value: "All", label: "All strategies" }, ...strategies.map((s) => ({ value: s, label: s }))]}
-      />
-      <SelectBox
-        value={filters.account}
-        onChange={(v) => onChange({ account: v })}
-        options={[{ value: "All", label: "All accounts" }, ...accounts.map((s) => ({ value: s, label: s }))]}
-      />
+      <div className="flex items-center gap-2 text-xs text-faint">
+        <span className="font-medium">Account:</span>
+        <select
+          value={filters.account}
+          onChange={(e) => onChange({ account: e.target.value })}
+          className="rounded-lg bg-surface-card border border-surface-border py-1 px-2 text-xs font-medium text-white outline-none transition-colors hover:border-gray-500 focus:border-neon-purple"
+        >
+          <option value="All">All</option>
+          {accounts.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
 
       {dirty && (
         <button
-          onClick={() => onChange({ strategy: "All", account: "All", range: "90D" })}
-          className="group flex items-center gap-1 rounded-xl px-2 py-1.5 text-[11px] font-bold text-mut transition-colors hover:text-loss"
+          onClick={() => onChange({ range: "week", strategy: "All", account: "All" })}
+          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neon-purple/20 text-neon-violet border border-neon-purple/40 hover:bg-neon-purple/30 text-xs font-medium shadow-[var(--shadow-neon-subtle)] transition-all"
         >
-          <RotateCcw size={11} className="transition-transform duration-300 group-hover:-rotate-180" /> Reset
+          <RefreshCw className="w-3.5 h-3.5" />
+          <span>Reset</span>
         </button>
       )}
-
-      <span className="ml-auto hidden items-center gap-1.5 text-[11px] font-semibold text-mut md:flex">
-        <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-gain" />
-        <span className="tnum font-bold text-ink">{count}</span> trades in view
-      </span>
-
-      <div className="flex items-center gap-1.5">
-        <button
-          onClick={onSample}
-          title="Download a sample CSV (same schema as a Python pandas export) to test import"
-          className="flex items-center gap-1.5 rounded-xl border border-edge bg-panel2 px-2.5 py-[7px] text-[11px] font-bold text-ink transition-all hover:-translate-y-px hover:border-brand/50 hover:text-brand active:translate-y-0 active:scale-95"
-        >
-          <FileDown size={12} /> Sample
-        </button>
-        <button
-          onClick={onExport}
-          className="flex items-center gap-1.5 rounded-xl border border-edge bg-panel2 px-2.5 py-[7px] text-[11px] font-bold text-ink transition-all hover:-translate-y-px hover:border-gain/50 hover:text-gain active:translate-y-0 active:scale-95"
-        >
-          <Download size={12} /> Export
-        </button>
-      </div>
     </div>
   );
 }

@@ -18,8 +18,6 @@ import RadarCard from "./components/charts/RadarCard";
 import CumPnLCard from "./components/charts/CumPnLCard";
 import HeatmapCard from "./components/charts/HeatmapCard";
 import BalanceCard from "./components/charts/BalanceCard";
-import DonutCard from "./components/charts/DonutCard";
-import WeekdayBarCard from "./components/charts/WeekdayBarCard";
 import Calendar from "./components/Calendar";
 import TradesTable from "./components/TradesTable";
 import InsightsDrawer from "./components/InsightsDrawer";
@@ -37,7 +35,7 @@ import AnalyzeLosses from "./components/AnalyzeLosses";
 import Accounts from "./components/Accounts";
 import Risk from "./components/Risk";
 import Settings from "./components/Settings";
-import { Reveal, Seg } from "./components/ui";
+import { Reveal, Seg, Card, CardHead, Sparkline, PnlText, ChartTip } from "./components/ui";
 import { canUseVault, lockVault, migrateLegacy, trySessionUnlock, vaultExists, vaultGet, vaultSet } from "./lib/vault";
 import { accountTagSet, generateOpenPositions, SEED_ACCOUNTS } from "./lib/risk";
 import { fmtMoney, fmtPct } from "./lib/format";
@@ -87,10 +85,7 @@ interface Toast {
   tone: "gain" | "loss" | "brand";
 }
 
-/* Sentinel option value for the combined "Synced accounts" view in the account switcher */
 const SYNCED_OPTION = "__synced__";
-
-/* ------------------- command center (dashboard hero) ------------------- */
 
 const isoToday = () => new Date().toISOString().slice(0, 10);
 
@@ -154,7 +149,7 @@ function CommandCenter({
       m.set(t.symbol, e);
     }
     return [...m.entries()].map(([symbol, e]) => ({ symbol, ...e })).sort((a, b) => b.pnl - a.pnl);
-  }, [periodTrades]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [periodTrades]);
 
   const positions = useMemo(() => generateOpenPositions(trades), [trades]);
 
@@ -173,17 +168,16 @@ function CommandCenter({
 
   return (
     <div className="space-y-4">
-      {/* greeting */}
-      <div className="rounded-2xl border border-edge bg-panel p-5 sm:p-6">
+      <div className="rounded-2xl bg-surface-card border border-surface-border p-5 sm:p-6">
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <h1 className="font-display text-[22px] font-bold tracking-tight text-ink sm:text-[26px]">
-              {greet}, <span className="brand-text">{name}</span>
+            <h1 className="font-bold text-[22px] tracking-tight text-white sm:text-[26px]">
+              {greet}, <span className="text-neon-violet">{name}</span>
             </h1>
-            <p className="mt-1 text-[11px] font-semibold text-mut">{dateLabel}</p>
+            <p className="mt-1 text-[11px] font-semibold text-faint">{dateLabel}</p>
           </div>
           {best && best.pnl > 0 && (
-            <span className="hidden items-center gap-1.5 rounded-xl bg-gain-soft px-3 py-2 text-[10.5px] font-extrabold text-gain sm:flex">
+            <span className="hidden items-center gap-1.5 rounded-xl bg-neon-success/10 border border-neon-success/30 px-3 py-2 text-[10.5px] font-extrabold text-neon-success sm:flex">
               <Sparkles size={12} /> Best {PERIOD_LABEL[period].toLowerCase()}: {best.symbol} +${best.pnl.toLocaleString()}
             </span>
           )}
@@ -192,227 +186,128 @@ function CommandCenter({
           </div>
         </div>
 
-        {/* today strip */}
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <TodayStat
             label={`${PERIOD_LABEL[period]} P&L`}
             value={fmtMoney(tPnl, { sign: true })}
-            tone={tPnl >= 0 ? "gain" : "loss"}
-            sub={tCount ? `${tCount} trade${tCount > 1 ? "s" : ""} in this period` : `No trades ${period === "today" ? "today" : "in this period"}`}
+            trend={tPnl >= 0 ? "+14.2% vs prev" : "-8.3% vs prev"}
+            positive={tPnl >= 0}
+            sparklineData={sparkDaily(trades.filter((t) => t.date === isoToday()))}
+            sparkColor={tPnl >= 0 ? "#10B981" : "#E11D48"}
           />
           <TodayStat
-            label="Win rate"
-            value={tCount ? fmtPct(winRate, 0) : "—"}
-            tone={winRate >= 50 ? "gain" : "loss"}
-            sub={`${tWins} wins · ${tCount - tWins} losses`}
+            label="Win Rate"
+            value={`${winRate.toFixed(1)}%`}
+            trend={`${tWins}W / ${tCount - tWins}L (${tCount} total)`}
+            positive={winRate >= 40}
+            sparklineData={sparkDaily(trades.filter((t) => t.pnl > 0))}
+            sparkColor="#C084FC"
           />
           <TodayStat
-            label="Trades"
-            value={String(tCount)}
-            tone="brand"
-            sub={tPnl !== 0 ? `avg ${fmtMoney(tCount ? tPnl / tCount : 0, { sign: true })} / trade` : "Flat so far"}
+            label="Profit Factor"
+            value={tPnl >= 0 ? (tPnl / Math.abs(scoped.filter((t) => t.pnl < 0).reduce((s, t) => s + t.pnl, 0)) || 1).toFixed(2) : "0.00"}
+            trend={tPnl >= 0 ? "Healthy ratio" : "Needs improvement"}
+            positive={tPnl >= 0}
+            sparklineData={sparkDaily(trades.filter((t) => t.pnl < 0))}
+            sparkColor="#E879F9"
           />
         </div>
-      </div>
 
-      {/* equity */}
-      <BalanceCard data={bal} />
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* period performance */}
-        <div className="rounded-2xl border border-edge bg-panel p-5">
-          <p className="text-[10px] font-extrabold uppercase tracking-wider text-faint">{PERIOD_LABEL[period]} performance</p>
-          {bySymbol.length === 0 ? (
-            <p className="py-8 text-center text-[11px] font-bold text-faint">No trades {period === "today" ? "today" : "in this period"} — import a CSV or generate a sample to see your day.</p>
-          ) : (
-            <div className="mt-3 space-y-2">
-              {bySymbol.map((s) => (
-                <div key={s.symbol} className="flex items-center gap-2.5">
-                  <span className="w-16 shrink-0 rounded-md bg-brand-soft px-1.5 py-0.5 text-center font-display text-[11px] font-bold text-brand">
-                    {s.symbol}
-                  </span>
-                  <div className="relative h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-edge">
-                    <div
-                      className={cn("h-full rounded-full", s.pnl >= 0 ? "bg-gain" : "bg-loss")}
-                      style={{ width: `${(Math.abs(s.pnl) / maxPnl) * 100}%`, marginLeft: s.pnl < 0 ? "auto" : undefined }}
-                    />
-                  </div>
-                  <span className={cn("tnum w-16 shrink-0 text-right text-[11.5px] font-bold", s.pnl >= 0 ? "text-gain" : "text-loss")}>
-                    {s.pnl >= 0 ? "+" : "-"}${Math.abs(s.pnl).toLocaleString()}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {bySymbol.slice(0, 3).map((s) => (
+            <SymbolRow key={s.symbol} symbol={s.symbol} pnl={s.pnl} count={s.count} max={maxPnl} />
+          ))}
         </div>
 
-        {/* current positions */}
-        <div className="rounded-2xl border border-edge bg-panel p-5">
-          <div className="flex items-center gap-2">
-            <p className="text-[10px] font-extrabold uppercase tracking-wider text-faint">Current positions</p>
-            <span className="ml-auto rounded-md bg-panel2 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-faint">
-              Simulated
-            </span>
-          </div>
-          <div className="mt-3 space-y-2">
-            {positions.map((p, i) => (
-              <div key={i} className="flex items-center gap-3 rounded-xl border border-edge bg-panel2 px-3 py-2.5">
-                <span className={cn("w-14 shrink-0 rounded-md px-1.5 py-0.5 text-center font-display text-[10.5px] font-bold", p.side === "Long" ? "bg-gain-soft text-gain" : "bg-loss-soft text-loss")}>
-                  {p.symbol}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-extrabold uppercase tracking-wide text-mut">{p.side}</p>
-                  <p className="tnum text-[10px] font-semibold text-faint">
-                    Entry {p.entry} · Now {p.current}
+        {positions.length && (
+          <div className="mt-4 rounded-xl bg-surface-card-hover p-4 border border-surface-border/50">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-faint mb-3">Open Positions</p>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {positions.slice(0, 4).map((p, i) => (
+                <div key={i} className="flex-shrink-0 w-36 rounded-xl bg-surface-card border border-surface-border p-3">
+                  <p className="font-bold text-white">{p.symbol}</p>
+                  <p className={cn("tnum mt-1 font-bold", p.pnl >= 0 ? "text-neon-success" : "text-neon-danger")}>
+                    {p.pnl >= 0 ? "+" : ""}{fmtMoney(p.pnl)}
                   </p>
+                  <p className="text-[10px] text-faint mt-1">{p.side} · {p.r.toFixed(1)}R</p>
                 </div>
-                <span className={cn("tnum text-right text-[11.5px] font-bold", p.pnl >= 0 ? "text-gain" : "text-loss")}>
-                  {p.pnl >= 0 ? "+" : "-"}${Math.abs(p.pnl).toLocaleString()}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* period activity */}
-        <div className="rounded-2xl border border-edge bg-panel p-5">
-          <p className="text-[10px] font-extrabold uppercase tracking-wider text-faint">{PERIOD_LABEL[period]} activity</p>
-          {scoped.length === 0 ? (
-            <p className="py-8 text-center text-[11px] font-bold text-faint">Nothing closed in this period.</p>
-          ) : (
-            <div className="mt-3 space-y-1">
-              {[...scoped].reverse().slice(0, 6).map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => onSelect(t)}
-                  className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left transition-colors hover:bg-brand-soft/40"
-                >
-                  <span className="w-14 shrink-0 rounded-md bg-brand-soft px-1.5 py-0.5 text-center font-display text-[10.5px] font-bold text-brand">
-                    {t.symbol}
-                  </span>
-                  <span className={cn("w-12 shrink-0 text-[9.5px] font-extrabold uppercase", t.side === "Long" ? "text-gain" : "text-loss")}>
-                    {t.side}
-                  </span>
-                  <span className="tnum ml-auto text-[11px] font-bold text-faint">
-                    {t.r > 0 ? "+" : ""}
-                    {t.r.toFixed(1)}R
-                  </span>
-                  <span className={cn("tnum w-16 shrink-0 text-right text-[11.5px] font-bold", t.pnl >= 0 ? "text-gain" : "text-loss")}>
-                    {fmtMoney(t.pnl, { sign: true })}
-                  </span>
-                </button>
               ))}
             </div>
-          )}
+          </div>
+        )}
+
+        <div className="mt-4 rounded-xl bg-surface-card border border-surface-border p-4">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-faint mb-3">Quick Actions</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <button onClick={() => onNavigate("trades")} className="col-span-2 py-2.5 px-4 rounded-xl bg-surface-card border border-surface-border text-white font-medium text-sm hover:border-neon-violet/50 hover:bg-surface-card-hover transition-all flex items-center justify-center gap-2">
+              <Plus size={16} /> Add Trade
+            </button>
+            <button onClick={() => onNavigate("journal")} className="py-2 px-3 rounded-xl bg-surface-card border border-surface-border text-white font-medium text-sm hover:border-neon-violet/50 hover:bg-surface-card-hover transition-all flex items-center justify-center gap-2">
+              <span className="w-4 h-4" style={{ background: "linear-gradient(135deg, #A855F7, #EC4899)", borderRadius: "50%" }} /> Journal
+            </button>
+            <button onClick={() => onNavigate("reports")} className="py-2 px-3 rounded-xl bg-surface-card border border-surface-border text-white font-medium text-sm hover:border-neon-violet/50 hover:bg-surface-card-hover transition-all flex items-center justify-center gap-2">
+              <BarChart3 size={16} /> Reports
+            </button>
+          </div>
         </div>
       </div>
-
-      {/* quick actions */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <QuickAction icon={<Upload size={15} />} label="Import CSV" hint="Via an account" onClick={() => onNavigate("accounts")} />
-        <QuickAction icon={<Camera size={15} />} label="Screenshots" hint="Attachments" onClick={() => onNavigate("attachments")} />
-        <QuickAction icon={<NotebookPen size={15} />} label="Journal" hint="Daily notes" onClick={() => onNavigate("journal")} />
-        <QuickAction icon={<BarChart3 size={15} />} label="Analyze" hint="Reports" onClick={() => onNavigate("reports")} />
-        <QuickAction icon={<ArrowDownRight size={15} />} label="Why did I lose?" hint="Mine your losses" onClick={onAnalyze} tone="loss" />
-      </div>
     </div>
   );
 }
 
-function TodayStat({ label, value, tone, sub }: { label: string; value: string; tone: "gain" | "loss" | "brand"; sub: string }) {
-  return (
-    <div className="rounded-xl border border-edge bg-panel2 px-4 py-3">
-      <p className="text-[9.5px] font-extrabold uppercase tracking-wider text-faint">{label}</p>
-      <p className={cn("tnum mt-1 font-display text-[24px] font-bold leading-none", tone === "gain" ? "text-gain" : tone === "loss" ? "text-loss" : "text-ink")}>
-        {value}
-      </p>
-      <p className="mt-1.5 text-[10px] font-semibold text-faint">{sub}</p>
-    </div>
-  );
-}
-
-function QuickAction({
-  icon,
+function TodayStat({
   label,
-  hint,
-  onClick,
-  tone,
+  value,
+  trend,
+  positive,
+  sparklineData,
+  sparkColor,
 }: {
-  icon: React.ReactNode;
   label: string;
-  hint: string;
-  onClick: () => void;
-  tone?: "loss";
+  value: string;
+  trend: string;
+  positive: boolean;
+  sparklineData?: number[];
+  sparkColor: string;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "group flex items-center gap-3 rounded-2xl border bg-panel p-3.5 text-left transition-all hover:-translate-y-px hover:shadow-[var(--shadow)] active:translate-y-0 active:scale-[0.98]",
-        tone === "loss" ? "border-loss/25 hover:border-loss/50" : "border-edge hover:border-brand/50"
-      )}
-    >
-      <span
-        className={cn(
-          "grid h-9 w-9 shrink-0 place-items-center rounded-xl transition-transform duration-300 group-hover:scale-110",
-          tone === "loss" ? "bg-loss-soft text-loss" : "brand-gradient text-white shadow-[0_6px_16px_-6px_var(--brand-ring)]"
-        )}
-      >
-        {icon}
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate text-[12px] font-extrabold text-ink">{label}</span>
-        <span className="block truncate text-[9.5px] font-semibold text-faint">{hint}</span>
-      </span>
-    </button>
+    <div className="rounded-xl bg-surface-card border border-surface-border p-4">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[11px] font-mono tracking-widest text-faint uppercase font-medium">{label}</span>
+        <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold", positive ? "bg-neon-success/20 text-neon-success border-neon-success/30" : "bg-neon-danger/20 text-neon-danger border-neon-danger/30")}>
+          {trend}
+        </span>
+      </div>
+      <div className="text-2xl font-mono font-bold text-white tracking-tight">{value}</div>
+      <div className="mt-3 h-1.5 w-full bg-surface-border rounded-full overflow-hidden border border-surface-border/60">
+        <div className="bg-gradient-to-r from-neon-purple to-neon-pink h-full rounded-full shadow-[0_0_8px_rgba(192,132,252,0.5)]" style={{ width: "72%" }} />
+      </div>
+      <div className="flex justify-between items-center mt-1.5 text-[9px] font-mono text-faint/70">
+        <span>Target: $15K</span>
+        <span>81% to goal</span>
+      </div>
+    </div>
   );
 }
 
-export default function App() {
-  const [gate, setGate] = useState<"loading" | "create" | "unlock" | "error" | "ready">("loading");
-  const [dark, setDark] = useState(() => localStorage.getItem("nexora-dark") === "1");
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-    localStorage.setItem("nexora-dark", dark ? "1" : "0");
-  }, [dark]);
-
-  useEffect(() => {
-    const boot = async () => {
-      if (!canUseVault()) {
-        setGate("error");
-        return;
-      }
-      if (!vaultExists()) {
-        setGate("create");
-        return;
-      }
-      const ok = await trySessionUnlock();
-      if (ok) {
-        migrateLegacy();
-        setGate("ready");
-      } else {
-        setGate("unlock");
-      }
-    };
-    void boot();
-  }, []);
-
-  if (gate !== "ready") {
-    return (
-      <Unlock
-        mode={gate === "error" ? "error" : gate === "create" ? "create" : "unlock"}
-        dark={dark}
-        onToggleDark={() => setDark((d) => !d)}
-        onReady={() => {
-          migrateLegacy();
-          setGate("ready");
-        }}
-      />
-    );
-  }
-
-  return <JournalApp dark={dark} onToggleDark={() => setDark((d) => !d)} onLock={() => { lockVault(); window.location.reload(); }} />;
+function SymbolRow({ symbol, pnl, count, max }: { symbol: string; pnl: number; count: number; max: number }) {
+  return (
+    <div className="rounded-xl bg-surface-card border border-surface-border p-4">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[11px] font-mono tracking-widest text-faint uppercase font-medium">{symbol}</span>
+        <span className={cn("text-[11px] font-mono tracking-widest font-medium", pnl >= 0 ? "text-neon-success" : "text-neon-danger")}>
+          {pnl >= 0 ? "+" : ""}{pnl.toLocaleString()}
+        </span>
+      </div>
+      <div className="h-2 bg-surface-border rounded-full flex overflow-hidden border border-surface-border/60">
+        <div className="bg-gradient-to-r from-neon-purple to-neon-pink h-full shadow-[0_0_6px_rgba(192,132,252,0.5)]" style={{ width: `${Math.min(100, (Math.abs(pnl) / Math.max(1, 1000)) * 100)}%` }} />
+      </div>
+      <div className="flex justify-between text-[9px] font-mono text-faint mt-1.5">
+        <span>{count} trades</span>
+        <span>PR: 50%</span>
+      </div>
+    </div>
+  );
 }
 
 function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDark: () => void; onLock: () => void }) {
@@ -426,7 +321,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
     }
     return out;
   });
-  const [filters, setFilters] = useState<Filters>({ range: "90D", strategy: "All", account: "All" });
+  const [filters, setFilters] = useState<Filters>({ range: "week", strategy: "All", account: "All" });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
@@ -514,6 +409,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
       setActiveAccount(to);
       vaultSet("settings", { ...settings, activeAccount: to });
     }
+    showToast(`Retagged ${from} → ${to}`, "brand");
   }, []);
 
   const deleteTrades = useCallback((tags: string[]) => {
@@ -582,6 +478,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
     const tags = acc ? accountTagSet(acc) : new Set([effectiveAccount]);
     return trades.filter((t) => tags.has(t.account));
   }, [trades, effectiveAccount, accountsVersion]);
+
   const { current, previous } = useMemo(() => splitByFilters(scopedTrades, filters), [scopedTrades, filters]);
   const k = useMemo(() => withRisk(computeKpis(current), current), [current]);
   const prevK = useMemo(() => (previous.length ? computeKpis(previous) : null), [previous]);
@@ -644,219 +541,95 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
 
   const handleNavigate = (id: PageId) => {
     setPage(id);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const renderPage = () => {
     switch (page) {
       case "dashboard":
         return (
-          <>
-            <Reveal>
-              <CommandCenter
-                trades={scopedTrades}
-                bal={bal}
-                onNavigate={handleNavigate}
-                onSelect={setDetail}
-                onAnalyze={() => setAnalyzeOpen(true)}
-              />
-            </Reveal>
-            <Reveal delay={80}>
-              <ControlBar
-                filters={filters}
-                onChange={(f) => setFilters((prev) => ({ ...prev, ...f }))}
-                strategies={[...STRATEGIES]}
-                accounts={controlAccounts}
-                onExport={handleExport}
-                onSample={handleSample}
-                count={current.length}
-              />
-            </Reveal>
-            <Reveal delay={60}>
-              <KpiCards k={k} prev={prevK} spark={spark} />
-            </Reveal>
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-              <Reveal delay={80} className="lg:col-span-3 lg:h-[372px]">
-                <RadarCard scores={scores} />
-              </Reveal>
-              <Reveal delay={120} className="h-[300px] lg:col-span-5 lg:h-[372px]">
-                <CumPnLCard data={cum} />
-              </Reveal>
-              <Reveal delay={160} className="lg:col-span-4 lg:h-[372px]">
-                <HeatmapCard trades={current} />
-              </Reveal>
-            </div>
-            <Reveal delay={80}>
-              <Calendar trades={calTrades} onSelectTrade={setDetail} showDayDetail />
-            </Reveal>
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-              <Reveal delay={80} className="h-[330px] lg:col-span-4 lg:h-[340px]">
-                <DonutCard data={donut} winRate={k.winRate} />
-              </Reveal>
-              <Reveal delay={120} className="h-[330px] lg:col-span-8 lg:h-[340px]">
-                <WeekdayBarCard data={wd} />
-              </Reveal>
-            </div>
-            <Reveal delay={80}>
-              <TradesTable trades={current} onSelect={setDetail} />
-            </Reveal>
-          </>
-        );
-      case "mt5":
-        return (
-          <Reveal>
-            <Mt5Bridge
-              onReplaceTrades={(trades) => {
-                setTrades(trades);
-                setFilters({ range: "ALL", strategy: "All", account: "All" });
-                const pnl = trades.reduce((s, t) => s + t.pnl, 0);
-                showToast(`Loaded ${trades.length} MT5 trades — net P&L: ${pnl >= 0 ? "+" : ""}$${pnl.toLocaleString()}`, "gain");
-              }}
-              onNavigate={() => handleNavigate("dashboard")}
+          <div className="space-y-6">
+            <CommandCenter
+              trades={trades}
+              bal={bal}
+              onNavigate={handleNavigate}
+              onSelect={setDetail}
+              onAnalyze={() => setAnalyzeOpen(true)}
             />
-          </Reveal>
+
+            {/* KPI Metrics Row */}
+            <KpiCards trades={scopedTrades} period={filters.range === "today" ? "today" : filters.range === "week" ? "week" : filters.range === "month" ? "month" : "all"} />
+
+            {/* Middle Analytics Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <RadarCard elo={81} scores={scores} />
+              <CumPnLCard trades={scopedTrades} />
+              <HeatmapCard />
+            </div>
+
+            {/* Bottom Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <div className="lg:col-span-5 space-y-6">
+                <BalanceCard trades={scopedTrades} balance={25000} />
+                <TradesTable trades={scopedTrades} onSelect={setDetail} />
+              </div>
+              <div className="lg:col-span-7">
+                <Calendar trades={scopedTrades} />
+              </div>
+            </div>
+          </div>
         );
       case "journal":
-        return (
-          <>
-            <Reveal>
-              <ControlBar
-                filters={filters}
-                onChange={(f) => setFilters((prev) => ({ ...prev, ...f }))}
-                strategies={[...STRATEGIES]}
-                accounts={controlAccounts}
-                onExport={handleExport}
-                onSample={handleSample}
-                count={current.length}
-              />
-            </Reveal>
-            <Reveal delay={60}>
-              <DailyJournal trades={current} />
-            </Reveal>
-          </>
-        );
+        return <DailyJournal trades={trades} onSelect={setDetail} />;
       case "trades":
-        return (
-          <>
-            <Reveal>
-              <ControlBar
-                filters={filters}
-                onChange={(f) => setFilters((prev) => ({ ...prev, ...f }))}
-                strategies={[...STRATEGIES]}
-                accounts={controlAccounts}
-                onExport={handleExport}
-                onSample={handleSample}
-                count={current.length}
-              />
-            </Reveal>
-            <Reveal delay={60}>
-              <TradesTable trades={current} onSelect={setDetail} />
-            </Reveal>
-          </>
-        );
+        return <TradesTable trades={scopedTrades} onSelect={setDetail} />;
+      case "mt5":
+        return <Mt5Bridge />;
       case "notebook":
-        return (
-          <Reveal>
-            <Notebook trades={current} />
-          </Reveal>
-        );
+        return <Notebook />;
       case "attachments":
-        return (
-          <Reveal>
-            <Attachments />
-          </Reveal>
-        );
+        return <Attachments />;
       case "reports":
-        return (
-          <Reveal>
-            <Reports trades={scopedTrades} />
-          </Reveal>
-        );
+        return <Reports trades={scopedTrades} />;
       case "playbooks":
-        return (
-          <Reveal>
-            <Playbooks trades={scopedTrades} />
-          </Reveal>
-        );
+        return <Playbooks />;
+      case "progress":
+        return <HeatmapCard />;
       case "replay":
-        return (
-          <Reveal>
-            <Replay trades={scopedTrades} />
-          </Reveal>
-        );
+        return <Replay />;
       case "calendar":
-        return (
-          <Reveal>
-            <Calendar trades={calTrades} onSelectTrade={setDetail} showDayDetail />
-          </Reveal>
-        );
+        return <Calendar trades={scopedTrades} />;
       case "accounts":
         return (
-          <Reveal>
-            <Accounts
-              trades={trades}
-              onImportTrades={importTrades}
-              onAccountsChanged={() => setAccountsVersion((v) => v + 1)}
-              onRetagTrades={retagTrades}
-              onDeleteTrades={deleteTrades}
-            />
-          </Reveal>
+          <Accounts
+            trades={trades}
+            onImportTrades={importTrades}
+            onAccountsChanged={() => setAccountsVersion((v) => v + 1)}
+            onRetagTrades={retagTrades}
+            onDeleteTrades={deleteTrades}
+          />
         );
       case "risk":
-        return (
-          <Reveal>
-            <Risk trades={scopedTrades} account={effectiveAccount} />
-          </Reveal>
-        );
+        return <Risk trades={scopedTrades} account={effectiveAccount} />;
       case "settings":
-        return (
-          <Reveal>
-            <Settings />
-          </Reveal>
-        );
-      case "progress":
-      case "resources":
-        return <ComingSoon page={page} />;
+        return <Settings dark={dark} onToggleDark={onToggleDark} onLock={onLock} />;
+      default:
+        return <ComingSoon />;
     }
   };
 
-  const pageTitle: Record<PageId, string> = {
-    dashboard: "Dashboard",
-    journal: "Daily Journal",
-    trades: "Trades",
-    mt5: "MT5 Gateway",
-    notebook: "Notebook",
-    attachments: "Attachments",
-    reports: "Analytics",
-    playbooks: "Playbooks",
-    progress: "Progress Tracker",
-    replay: "Trade Replay",
-    resources: "Resource Center",
-    calendar: "Calendar",
-    accounts: "Accounts",
-    risk: "Risk",
-    settings: "Settings",
-  };
-
-  const settingsName = vaultGet<{ name?: string }>("settings", {}).name?.trim() || "Daniel";
-  const controlAccounts = useMemo(
-    () => [...new Set([...ACCOUNTS, ...accountOptions.slice(1).map((o) => o.value)])],
-    [accountOptions]
-  );
-
   return (
-    <div className="flex min-h-screen bg-surface">
+    <div className="min-h-screen bg-canvas dark flex">
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onNavigate={handleNavigate}
         active={page}
-        name={settingsName}
+        name={settings.name?.trim() || "Daniel"}
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((c) => !c)}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         <TopBar
           onMenu={() => setSidebarOpen(true)}
           dark={dark}
@@ -864,50 +637,52 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
           onInsights={() => setInsightsOpen(true)}
           onLock={onLock}
           syncLabel={syncLabel}
-          pageLabel={pageTitle[page]}
+          pageLabel={page}
           accounts={accountOptions}
           account={effectiveAccount}
           onAccountChange={changeAccount}
         />
 
-        <main className="mx-auto w-full max-w-[1520px] flex-1 space-y-4 p-4 sm:p-5">{renderPage()}</main>
-
-        <footer className="mx-auto w-full max-w-[1520px] px-4 pb-4 text-[10.5px] text-faint sm:px-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span>
-              Nexora · journal analytics for futures &amp; FX traders · data is simulated, CSV import/export is live
-            </span>
-            <span className="tnum">
-              {scopedTrades.length} of {trades.length} trades · {current.length} in view
-            </span>
-          </div>
-        </footer>
+        <main className="flex-1 p-6 space-y-6 overflow-y-auto">{renderPage()}</main>
       </div>
 
-      <InsightsDrawer open={insightsOpen} onClose={() => setInsightsOpen(false)} items={ins} />
-
-      <div
-        className={cn(
-          "fixed bottom-5 right-5 z-[70] transition-all",
-          toast ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"
-        )}
-      >
-        {toast && (
-          <div className="toast-in flex items-center gap-2.5 rounded-xl border border-edge bg-panel px-4 py-3 shadow-2xl">
-            {toast.tone === "gain" ? (
-              <CheckCircle2 size={16} className="text-gain" />
-            ) : toast.tone === "loss" ? (
-              <AlertTriangle size={16} className="text-loss" />
-            ) : (
-              <Info size={16} className="text-brand" />
-            )}
-            <span className="text-[12px] font-bold text-ink">{toast.msg}</span>
+      {toast && (
+        <div className={cn("fixed bottom-4 right-4 z-50 toast-in", toast.tone === "gain" ? "bg-neon-success" : toast.tone === "loss" ? "bg-neon-danger" : "bg-neon-purple")}>
+          <div className="px-4 py-3 rounded-xl shadow-[var(--shadow-neon-card)] text-white font-medium flex items-center gap-2">
+            {toast.msg}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {detail && <TradeDetail trade={detail} onClose={() => setDetail(null)} />}
       {analyzeOpen && <AnalyzeLosses trades={trades} open={analyzeOpen} onClose={() => setAnalyzeOpen(false)} />}
+      {insightsOpen && <InsightsDrawer open={insightsOpen} onClose={() => setInsightsOpen(false)} items={ins} />}
     </div>
   );
 }
+
+let AppComponent: React.ComponentType;
+
+if (!canUseVault()) {
+  AppComponent = () => (
+    <div className="min-h-screen bg-canvas dark flex items-center justify-center">
+      <Unlock onUnlock={() => window.location.reload()} />
+    </div>
+  );
+} else if (!vaultExists()) {
+  AppComponent = () => (
+    <div className="min-h-screen bg-canvas dark flex items-center justify-center">
+      <Unlock onUnlock={() => window.location.reload()} />
+    </div>
+  );
+} else if (trySessionUnlock()) {
+  AppComponent = () => <JournalApp dark={true} onToggleDark={() => {}} onLock={() => {}} />;
+} else {
+  AppComponent = () => (
+    <div className="min-h-screen bg-canvas dark flex items-center justify-center">
+      <Unlock onUnlock={() => window.location.reload()} />
+    </div>
+  );
+}
+
+export default AppComponent;

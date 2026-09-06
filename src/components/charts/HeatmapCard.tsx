@@ -1,119 +1,87 @@
-import { useMemo } from "react";
 import { Card, CardHead } from "../ui";
-import { Grid3x3 } from "lucide-react";
-import type { Trade } from "../../data/trades";
-import { dailyMap } from "../../lib/metrics";
-import { fmtDateShort, fmtMoney } from "../../lib/format";
+import { Sparkles, CheckSquare, ChevronRight } from "lucide-react";
 
-const iso = (d: Date) => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
-};
+export default function HeatmapCard({
+  year = new Date().getFullYear(),
+}: { year?: number }) {
+  // Generate sample heatmap data (5 weeks x 7 days)
+  const weeks = Array.from({ length: 5 }, (_, w) => 
+    Array.from({ length: 7 }, (_, d) => Math.random() > 0.5 ? Math.floor(Math.random() * 4) : 0)
+  );
 
-export default function HeatmapCard({ trades }: { trades: Trade[] }) {
-  const { weeks, maxAbs, net } = useMemo(() => {
-    const map = dailyMap(trades);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const start = new Date(today);
-    start.setDate(start.getDate() - 83);
-    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-
-    let mx = 1;
-    let sum = 0;
-    const wks: { key: string; inFuture: boolean }[][] = [];
-    const cur = new Date(start);
-    for (let w = 0; w < 12; w++) {
-      const col: { key: string; inFuture: boolean }[] = [];
-      for (let d = 0; d < 7; d++) {
-        const key = iso(cur);
-        const inFuture = cur.getTime() > today.getTime();
-        const cell = map.get(key);
-        if (cell) {
-          mx = Math.max(mx, Math.abs(cell.pnl));
-          sum += cell.pnl;
-        }
-        col.push({ key, inFuture });
-        cur.setDate(cur.getDate() + 1);
-      }
-      wks.push(col);
-    }
-    return { weeks: wks, maxAbs: mx, net: sum };
-  }, [trades]);
-
-  const map = useMemo(() => dailyMap(trades), [trades]);
-  const days = ["Mon", "", "Wed", "", "Fri", "", "Sun"];
+  const intensityColors = [
+    "bg-canvas/50 border border-surface-border/30",        // 0 - dormant
+    "bg-purple-950/60 border border-purple-500/20",        // 1 - light
+    "bg-purple-600",                                        // 2 - medium
+    "bg-purple-400 shadow-sm shadow-purple-500/30",        // 3 - strong
+    "bg-purple-300 shadow-[0_0_8px_rgba(192,132,252,0.5)]", // 4 - flourishing
+  ];
 
   return (
-    <Card className="flex h-full flex-col">
+    <Card className="p-5 flex flex-col justify-between" elevated>
       <CardHead
-        title="Progress Tracker"
-        info="Daily P&L intensity over the trailing 12 weeks. Green days are profitable, red days are losses."
-        icon={<Grid3x3 size={14} />}
+        title="Trading Frequency Grid"
         right={
-          <span className={`rounded-md px-2 py-1 text-[10px] font-bold tnum ${net >= 0 ? "bg-gain-soft text-gain" : "bg-loss-soft text-loss"}`}>
-            {fmtMoney(net, { sign: true })}
-          </span>
+          <span className="bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded text-[9px] font-bold">Beta</span>
         }
+        icon={<CheckSquare className="w-4 h-4 text-neon-purple" />}
       />
-      <div className="flex flex-1 flex-col justify-center px-5 pb-4">
-        <div className="flex gap-[5px]">
-          <div className="mr-1 flex flex-col justify-between py-[1px] text-[8.5px] font-bold text-faint">
-            {days.map((d, i) => (
-              <span key={i} className="h-[18px] leading-[18px]">{d}</span>
+
+      <div className="flex flex-col">
+        <div className="flex justify-between text-[10px] text-faint font-medium mb-1.5 px-6">
+          <span>Oct</span>
+          <span>Nov</span>
+          <span>Dec</span>
+        </div>
+        <div className="flex gap-1.5 justify-center">
+          {/* Weekday Labels */}
+          <div className="flex flex-col justify-between text-[9px] text-faint/70 py-0.5">
+            <span>M</span>
+            <span>W</span>
+            <span>F</span>
+          </div>
+          {/* Matrix */}
+          <div className="grid grid-flow-col grid-rows-5 gap-1.5 flex-1">
+            {weeks[0].map((intensity, d) => (
+              <div key={`0-${d}`} className={`w-full aspect-square rounded-sm ${intensityColors[intensity]}`} />
+            ))}
+            {weeks[1].map((intensity, d) => (
+              <div key={`1-${d}`} className={`w-full aspect-square rounded-sm ${intensityColors[intensity]}`} />
+            ))}
+            {weeks[2].map((intensity, d) => (
+              <div key={`2-${d}`} className={`w-full aspect-square rounded-sm ${intensityColors[intensity]}`} />
+            ))}
+            {weeks[3].map((intensity, d) => (
+              <div key={`3-${d}`} className={`w-full aspect-square rounded-sm ${intensityColors[intensity]}`} />
+            ))}
+            {weeks[4].map((intensity, d) => (
+              <div key={`4-${d}`} className={`w-full aspect-square rounded-sm ${intensityColors[intensity]}`} />
             ))}
           </div>
-          {weeks.map((col, wi) => (
-            <div key={wi} className="flex flex-1 flex-col gap-[5px]">
-              {col.map((cell) => {
-                const rec = map.get(cell.key);
-                const alpha = rec ? 20 + 75 * (Math.abs(rec.pnl) / maxAbs) : 0;
-                const bg = cell.inFuture
-                  ? "transparent"
-                  : rec
-                    ? rec.pnl > 0
-                      ? `color-mix(in srgb, var(--gain) ${alpha}%, transparent)`
-                      : rec.pnl < 0
-                        ? `color-mix(in srgb, var(--loss) ${alpha}%, transparent)`
-                        : "var(--edge2)"
-                    : "var(--edge2)";
-                return (
-                  <div key={cell.key} className="group relative h-[18px] flex-1">
-                    <div
-                      className="h-full w-full rounded-[4px] transition-transform duration-150 group-hover:scale-110 group-hover:ring-1 group-hover:ring-brand"
-                      style={{ background: bg }}
-                    />
-                    {!cell.inFuture && (
-                      <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-edge bg-panel px-2 py-1 text-[10px] font-semibold text-ink shadow-xl group-hover:block tnum">
-                        {fmtDateShort(cell.key)} ·{" "}
-                        <span className={rec && rec.pnl > 0 ? "text-gain" : rec && rec.pnl < 0 ? "text-loss" : "text-mut"}>
-                          {rec ? fmtMoney(rec.pnl, { sign: true }) : "flat"}
-                        </span>
-                        {rec ? ` · ${rec.count}t` : ""}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
         </div>
-        <div className="mt-4 flex items-center justify-between text-[9.5px] font-bold text-faint">
-          <span>12 weeks ago</span>
-          <span className="flex items-center gap-1">
-            Less
-            {[0, 25, 50, 75, 100].map((a) => (
-              <span
-                key={a}
-                className="h-2.5 w-2.5 rounded-[3px]"
-                style={{ background: `color-mix(in srgb, var(--gain) ${a}%, var(--edge2))` }}
-              />
-            ))}
-            More
-          </span>
-          <span>Today</span>
+      </div>
+
+      {/* Legend & Today Score */}
+      <div className="mt-4 pt-3 flex items-center justify-between border-t border-surface-border">
+        <div className="flex items-center gap-1.5 font-mono text-[9px] text-faint">
+          <span>Dormant</span>
+          <div className="flex gap-1">
+            <div className="w-2.5 h-2.5 rounded-sm bg-canvas/50 border border-surface-border/30" />
+            <div className="w-2.5 h-2.5 rounded-sm bg-purple-950/60 border border-purple-500/20" />
+            <div className="w-2.5 h-2.5 rounded-sm bg-purple-600" />
+            <div className="w-2.5 h-2.5 rounded-sm bg-purple-400" />
+            <div className="w-2.5 h-2.5 rounded-sm bg-purple-300" />
+          </div>
+          <span>Flourishing</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <div className="text-[9px] font-mono text-faint uppercase">Today's Score</div>
+            <div className="text-xs font-bold text-neon-violet">4 / 6 Rules</div>
+          </div>
+          <button className="border border-neon-violet/40 hover:border-neon-violet px-2.5 py-1 rounded text-[10px] font-mono font-medium text-neon-violet hover:bg-neon-purple/10 transition-colors">
+            <ChevronRight className="w-3 h-3 ml-1" /> Details
+          </button>
         </div>
       </div>
     </Card>

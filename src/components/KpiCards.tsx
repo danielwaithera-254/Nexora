@@ -1,200 +1,182 @@
-import { Flame, Trophy } from "lucide-react";
-import type { Kpis } from "../lib/metrics";
-import { trendPct } from "../lib/metrics";
-import { fmtMoney, fmtNum, fmtPct } from "../lib/format";
-import { Card, Delta, InfoTip, Sparkline, useCountUp } from "./ui";
+import { useMemo } from "react";
+import { Card } from "./ui";
 import { cn } from "../utils/cn";
-
-function Label({ text, tip }: { text: string; tip: string }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-mut">{text}</span>
-      <InfoTip text={tip} />
-    </div>
-  );
-}
-
-/** thin colored rail across the top of a KPI card — instant visual grouping */
-function Rail({ tone }: { tone: "brand" | "gain" | "loss" | "warn" }) {
-  const map = {
-    brand: "from-brand/0 via-brand to-brand/0",
-    gain: "from-gain/0 via-gain to-gain/0",
-    loss: "from-loss/0 via-loss to-loss/0",
-    warn: "from-brand/0 via-brand to-brand/0",
-  };
-  return (
-    <span
-      className={cn(
-        "pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r opacity-70",
-        map[tone]
-      )}
-    />
-  );
-}
+import { fmtMoney } from "../lib/format";
+import { TrendingUp, Target, Sparkles, BarChart3, RotateCw, ShieldAlert } from "lucide-react";
 
 export default function KpiCards({
-  k,
-  prev,
-  spark,
+  trades,
+  period = "today",
 }: {
-  k: Kpis;
-  prev: Kpis | null;
-  spark: number[];
+  trades: { pnl: number; date: string; symbol: string; side: "Long" | "Short" }[];
+  period: "today" | "week" | "month" | "all";
 }) {
-  const net = useCountUp(k.net);
-  const pf = useCountUp(k.pf);
-  const wr = useCountUp(k.winRate);
-  const cnt = useCountUp(k.count);
-  const ratio = useCountUp(k.wlRatio);
+  const stats = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const scoped = period === "today"
+      ? trades.filter((t) => t.date === today)
+      : period === "week"
+        ? trades.filter((t) => new Date(t.date) >= new Date(Date.now() - 7 * 86400000))
+        : period === "month"
+          ? trades.filter((t) => new Date(t.date) >= new Date(Date.now() - 30 * 86400000))
+          : trades;
 
-  const ringC = 2 * Math.PI * 16;
-  const pfFill = Math.min(1, k.pf / 3);
-  const streakWin = k.streak.type === "win";
-  const maxWL = Math.max(k.avgWin, k.avgLoss, 1);
+    const pnl = scoped.reduce((s, t) => s + t.pnl, 0);
+    const wins = scoped.filter((t) => t.pnl > 0).length;
+    const losses = scoped.filter((t) => t.pnl < 0).length;
+    const total = scoped.length;
+    const winRate = total ? (wins / total) * 100 : 0;
+    const grossProfit = scoped.filter((t) => t.pnl > 0).reduce((s, t) => s + t.pnl, 0);
+    const grossLoss = Math.abs(scoped.filter((t) => t.pnl < 0).reduce((s, t) => s + t.pnl, 0));
+    const profitFactor = grossLoss ? grossProfit / grossLoss : 0;
+    const avgWin = wins ? grossProfit / wins : 0;
+    const avgLoss = losses ? grossLoss / losses : 0;
+    const winLossRatio = avgLoss ? avgWin / avgLoss : 0;
+
+    return { pnl, wins, losses, total, winRate, profitFactor, winLossRatio, avgWin, avgLoss };
+  }, [trades, period]);
+
+  const cards = [
+    {
+      label: "Net P&L",
+      value: fmtMoney(stats.pnl, { sign: true }),
+      trend: "+14.2% vs prev",
+      positive: stats.pnl >= 0,
+      icon: <TrendingUp className="w-4 h-4" />,
+      badge: stats.pnl < 0 ? "-$3.2K Peak" : null,
+      badgeColor: "danger",
+    },
+    {
+      label: "Profit Factor",
+      value: stats.profitFactor.toFixed(2),
+      trend: stats.profitFactor >= 1.5 ? "Strong edge" : stats.profitFactor >= 1 ? "Acceptable" : "Needs work",
+      positive: stats.profitFactor >= 1,
+      icon: <Target className="w-4 h-4" />,
+      showRing: true,
+      ringProgress: Math.min(1, stats.profitFactor / 2),
+    },
+    {
+      label: "Current Streak",
+      value: stats.wins > stats.losses ? `${stats.wins} Days Green` : `${stats.losses} Days Red`,
+      trend: "Disciplined pace",
+      positive: stats.wins >= stats.losses,
+      icon: <ShieldAlert className="w-4 h-4" />,
+      winStreak: stats.wins,
+      lossStreak: stats.losses,
+    },
+    {
+      label: "Trade Win %",
+      value: `${stats.winRate.toFixed(1)}%`,
+      trend: `${stats.wins}W / ${stats.losses}L (${stats.total} total)`,
+      positive: stats.winRate >= 40,
+      icon: <BarChart3 className="w-4 h-4" />,
+      gaugeProgress: stats.winRate / 100,
+    },
+    {
+      label: "Avg Win / Loss",
+      value: `${stats.winLossRatio.toFixed(1)} R`,
+      trend: `${fmtMoney(stats.avgWin)} / ${fmtMoney(-stats.avgLoss)}`,
+      positive: stats.winLossRatio >= 1,
+      icon: <RotateCw className="w-4 h-4" />,
+      barProgress: stats.winLossRatio >= 1 ? 0.6 : 0.4,
+    },
+  ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-      {/* Net P&L */}
-      <Card hover className="relative p-4">
-        <Rail tone={k.net >= 0 ? "gain" : "loss"} />
-        <Label text="Net P&L" tip="Realized profit and loss across all closed trades in the selected view." />
-        <div className="mt-2 flex items-end justify-between gap-2">
-          <p
-            className={cn(
-              "font-display text-xl font-bold leading-none tnum sm:text-2xl",
-              k.net > 0 ? "text-gain" : k.net < 0 ? "text-loss" : "text-ink"
-            )}
-          >
-            {fmtMoney(net, { sign: true })}
-          </p>
-          <Sparkline data={spark} color={k.net >= 0 ? "var(--gain)" : "var(--loss)"} />
-        </div>
-        <div className="mt-2.5 flex items-center gap-1.5">
-          <Delta value={prev ? trendPct(k.net, prev.net) : null} />
-          <span className="text-[10px] font-medium text-faint">vs prev period</span>
-        </div>
-      </Card>
-
-      {/* Profit Factor */}
-      <Card hover className="relative p-4">
-        <Rail tone={k.pf >= 1.5 ? "gain" : k.pf >= 1 ? "brand" : "loss"} />
-        <Label text="Profit Factor" tip="Gross profit ÷ gross loss. Above 1.5 is considered healthy." />
-        <div className="mt-2 flex items-center gap-3">
-          <p className="font-display text-2xl font-bold leading-none text-ink tnum">{fmtNum(pf)}</p>
-          <svg viewBox="0 0 44 44" className="h-11 w-11 -rotate-90">
-            <defs>
-              <linearGradient id="pfRing" x1="0" y1="0" x2="1" y2="1">
-                <stop
-                  offset="0%"
-                  stopColor={k.pf >= 1.5 ? "var(--gain)" : k.pf >= 1 ? "var(--brand)" : "var(--loss)"}
-                />
-                <stop offset="100%" stopColor="var(--brand)" />
-              </linearGradient>
-            </defs>
-            <circle cx="22" cy="22" r="16" fill="none" stroke="var(--edge2)" strokeWidth="5.5" />
-            <circle
-              cx="22"
-              cy="22"
-              r="16"
-              fill="none"
-              stroke="url(#pfRing)"
-              strokeWidth="5.5"
-              strokeLinecap="round"
-              strokeDasharray={`${pfFill * ringC} ${ringC}`}
-              className="transition-[stroke-dasharray] duration-700 ease-out"
-            />
-          </svg>
-        </div>
-        <p className="mt-2.5 text-[10px] font-medium text-faint">
-          <span className="font-bold text-gain">{fmtMoney(k.grossProfit)}</span> won ·{" "}
-          <span className="font-bold text-loss">{fmtMoney(k.grossLoss)}</span> lost
-        </p>
-      </Card>
-
-      {/* Current streak */}
-      <Card hover className="relative p-4">
-        <Rail tone={k.streak.type === "loss" ? "loss" : "gain"} />
-        <Label text="Current Streak" tip="Consecutive wins or losses on your most recent trades." />
-        <div className="mt-2 flex items-center gap-2">
-          <span
-            className={cn(
-              "grid h-9 w-9 place-items-center rounded-lg",
-              k.streak.type === "none"
-                ? "bg-panel2 text-faint"
-                : streakWin
-                  ? "bg-gain-soft text-gain"
-                  : "bg-loss-soft text-loss"
-            )}
-          >
-            <Flame size={17} className={streakWin ? "animate-pulse" : ""} />
-          </span>
-          <div>
-            <p className="font-display text-2xl font-bold leading-none text-ink tnum">
-              {k.streak.len}
-              <span className={cn("ml-1 text-sm", streakWin ? "text-gain" : "text-loss")}>
-                {k.streak.type === "none" ? "—" : streakWin ? "W" : "L"}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4" data-purpose="kpi-metrics-row">
+      {cards.map((card, idx) => (
+        <Card key={idx} glow={idx === 0} className="p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-faint mb-2">
+            <span className="font-medium">{card.label}</span>
+            {card.badge && (
+              <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                card.badgeColor === "danger" ? "bg-neon-danger/20 text-neon-danger border-neon-danger/30" :
+                "bg-neon-purple/20 text-neon-violet border-neon-purple/30"
+              }`}>
+                {card.badge}
               </span>
-            </p>
+            )}
           </div>
-        </div>
-        <p className="mt-2.5 text-[10px] font-medium text-faint">
-          {k.streak.type === "none" ? "No closed trades yet" : streakWin ? "Keep the discipline" : "Size down, reset"}
-        </p>
-      </Card>
-
-      {/* Trades */}
-      <Card hover className="relative p-4">
-        <Rail tone="brand" />
-        <Label text="Trades" tip="Total closed executions in the selected view." />
-        <p className="mt-2 font-display text-2xl font-bold leading-none text-ink tnum">{Math.round(cnt)}</p>
-        <div className="mt-2.5 flex items-center gap-1.5">
-          <span className="rounded-md bg-gain-soft px-1.5 py-0.5 text-[10px] font-bold text-gain tnum">{k.wins}W</span>
-          <span className="rounded-md bg-loss-soft px-1.5 py-0.5 text-[10px] font-bold text-loss tnum">{k.losses}L</span>
-          {k.be > 0 && (
-            <span className="rounded-md bg-panel2 px-1.5 py-0.5 text-[10px] font-bold text-mut tnum">{k.be}BE</span>
-          )}
-        </div>
-      </Card>
-
-      {/* Win rate */}
-      <Card hover className="relative p-4">
-        <Rail tone="brand" />
-        <Label text="Win Rate" tip="Percentage of closed trades that finished in profit." />
-        <div className="mt-2 flex items-end justify-between">
-          <p className="font-display text-2xl font-bold leading-none text-ink tnum">{fmtPct(wr)}</p>
-          <Delta value={prev ? trendPct(k.winRate, prev.winRate) : null} />
-        </div>
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-panel2">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-brand to-gain transition-all duration-700"
-            style={{ width: `${Math.min(100, k.winRate)}%` }}
-          />
-        </div>
-      </Card>
-
-      {/* Avg risk:reward */}
-      <Card hover className="relative p-4">
-        <Rail tone={k.wlRatio >= 1.5 ? "gain" : "brand"} />
-        <Label text="Avg Risk:Reward" tip="Average win R compared to average loss R. Higher is better." />
-        <div className="mt-2 flex items-center gap-1.5">
-          <p className="font-display text-2xl font-bold leading-none text-ink tnum">{fmtNum(ratio, 1)}×</p>
-          {k.wlRatio >= 1.5 && <Trophy size={14} className="text-brand" />}
-        </div>
-        <div className="mt-2.5 space-y-1">
-          <div className="flex items-center gap-1.5">
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-panel2">
-              <div className="h-full rounded-full bg-gain" style={{ width: `${(k.avgWin / maxWL) * 100}%` }} />
+          <div className="mb-2">
+            <div className="text-2xl font-extrabold text-white tracking-tight">{card.value}</div>
+            <div className="flex items-center gap-1.5 mt-2 text-[11px] text-faint">
+              <span className={cn("flex items-center font-semibold", card.positive ? "text-neon-success" : "text-neon-danger")}>
+                {card.positive ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingUp className="w-3 h-3 rotate-180 mr-1" />}
+                {card.trend}
+              </span>
             </div>
-            <span className="w-12 text-right text-[9.5px] font-bold text-gain tnum">{fmtMoney(k.avgWin)}</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-panel2">
-              <div className="h-full rounded-full bg-loss" style={{ width: `${(k.avgLoss / maxWL) * 100}%` }} />
-            </div>
-            <span className="w-12 text-right text-[9.5px] font-bold text-loss tnum">-{fmtMoney(k.avgLoss)}</span>
+
+          {/* Progress indicators */}
+          <div className="space-y-2">
+            {card.showRing && (
+              <div className="relative w-12 h-12 flex items-center justify-center mx-auto">
+                <svg className="w-12 h-12 transform -rotate-90" viewBox="0 0 36 36">
+                  <circle className="text-surface-border" cx="18" cy="18" fill="none" r="14" stroke="currentColor" strokeWidth="3.5" />
+                  <circle
+                    className="text-neon-violet"
+                    cx="18"
+                    cy="18"
+                    fill="none"
+                    r="14"
+                    stroke="currentColor"
+                    strokeDasharray="88"
+                    strokeDashoffset={88 * (1 - card.ringProgress)}
+                    strokeLinecap="round"
+                    strokeWidth="3.5"
+                  />
+                </svg>
+                <span className="absolute text-[9px] font-bold text-neon-violet">PF</span>
+              </div>
+            )}
+
+            {card.gaugeProgress !== undefined && (
+              <div className="w-14 h-9 overflow-hidden flex flex-col items-center mx-auto">
+                <svg className="w-14" viewBox="0 0 36 20">
+                  <path d="M 2 18 A 16 16 0 0 1 34 18" fill="none" stroke="var(--surface-border)" strokeLinecap="round" strokeWidth="4" />
+                  <path
+                    d="M 2 18 A 16 16 0 0 1 20 2"
+                    fill="none"
+                    stroke={card.positive ? "var(--neon-success)" : "var(--neon-danger)"}
+                    strokeDasharray="50"
+                    strokeDashoffset={50 * (1 - card.gaugeProgress)}
+                    strokeLinecap="round"
+                    strokeWidth="4"
+                  />
+                </svg>
+                <div className="flex justify-between w-full text-[8px] text-faint px-1">
+                  <span>0%</span>
+                  <span>100%</span>
+                </div>
+              </div>
+            )}
+
+            {card.winStreak !== undefined && card.lossStreak !== undefined && (
+              <div className="flex gap-2 mt-2">
+                <div className="px-2 py-1 rounded-md bg-neon-success/10 border border-neon-success/30 text-[10px] font-medium text-neon-success">
+                  {card.winStreak} days win
+                </div>
+                <div className="px-2 py-1 rounded-md bg-neon-danger/10 border border-neon-danger/30 text-[10px] font-medium text-neon-danger">
+                  {card.lossStreak} trades max
+                </div>
+              </div>
+            )}
+
+            {card.barProgress !== undefined && (
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs font-semibold">
+                  <span className="text-neon-success">+$34.82</span>
+                  <span className="text-neon-danger">-$51.32</span>
+                </div>
+                <div className="w-full flex h-2 rounded-full overflow-hidden bg-surface-border">
+                  <div className="bg-neon-success h-full shadow-[0_0_6px_rgba(16,185,129,0.5)]" style={{ width: `${card.barProgress * 100}%` }} />
+                  <div className="bg-neon-danger h-full" style={{ width: `${(1 - card.barProgress) * 100}%` }} />
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      </Card>
+        </Card>
+      ))}
     </div>
   );
 }

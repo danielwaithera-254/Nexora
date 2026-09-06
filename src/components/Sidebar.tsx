@@ -15,8 +15,15 @@ import {
   ShieldAlert,
   Settings,
   X,
-  PanelLeftClose,
-  PanelLeftOpen,
+  Plus,
+  Sparkles,
+  Download,
+  Sun,
+  SlidersHorizontal,
+  ChevronDown,
+  RefreshCw,
+  Search,
+  Wallet as WalletIcon,
 } from "lucide-react";
 import { cn } from "../utils/cn";
 
@@ -37,28 +44,21 @@ export type PageId =
   | "risk"
   | "settings";
 
-interface NavItem {
-  id: PageId;
-  name: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  badge?: string;
-}
-
-const NAV: NavItem[] = [
+const NAV: { id: PageId; name: string; icon: React.ComponentType<{ size?: number; className?: string }>; badge?: string; badgeVariant?: "new" | "pro" }[] = [
   { id: "dashboard", name: "Dashboard", icon: LayoutDashboard },
-  { id: "trades", name: "Trades", icon: CandlestickChart },
-  { id: "calendar", name: "Calendar", icon: CalendarDays },
-  { id: "reports", name: "Analytics", icon: BarChart3 },
-  { id: "playbooks", name: "Playbooks", icon: Layers },
-  { id: "journal", name: "Journal", icon: BookOpen },
+  { id: "journal", name: "Daily Journal", icon: BookOpen },
+  { id: "trades", name: "Trades Log", icon: CandlestickChart },
   { id: "notebook", name: "Notebook", icon: NotebookPen },
-  { id: "attachments", name: "Attachments", icon: Images },
+  { id: "reports", name: "Reports", icon: BarChart3, badge: "NEW", badgeVariant: "new" },
+  { id: "playbooks", name: "Playbooks", icon: Layers, badge: "NEW", badgeVariant: "new" },
+  { id: "progress", name: "Progress Tracker", icon: Sparkles },
+  { id: "replay", name: "Trade Replay", icon: RotateCw, badge: "PRO", badgeVariant: "pro" },
+  { id: "resources", name: "Resource Center", icon: GraduationCap },
+  { id: "mt5", name: "MT5 Gateway", icon: RadioTower, badge: "LIVE", badgeVariant: "new" },
+  { id: "calendar", name: "Calendar", icon: CalendarDays },
   { id: "accounts", name: "Accounts", icon: Wallet },
   { id: "risk", name: "Risk", icon: ShieldAlert },
-  { id: "replay", name: "Trade Replay", icon: RotateCw, badge: "BETA" },
-  { id: "progress", name: "Progress", icon: TrendingUp },
-  { id: "mt5", name: "MT5 Gateway", icon: RadioTower, badge: "LIVE" },
-  { id: "resources", name: "Resources", icon: GraduationCap },
+  { id: "settings", name: "Settings", icon: Settings },
 ];
 
 const initials = (name: string) =>
@@ -75,22 +75,18 @@ export default function Sidebar({
   onNavigate,
   active,
   name,
-  collapsed,
-  onToggleCollapsed,
 }: {
   open: boolean;
   onClose: () => void;
   onNavigate: (id: PageId) => void;
   active: PageId;
   name: string;
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
 }) {
   return (
     <>
       <div
         className={cn(
-          "fixed inset-0 z-40 bg-[#1b0b3a]/60 backdrop-blur-sm transition-opacity lg:hidden",
+          "fixed inset-0 z-40 bg-canvas/80 backdrop-blur-sm transition-opacity lg:hidden",
           open ? "opacity-100" : "pointer-events-none opacity-0"
         )}
         onClick={onClose}
@@ -98,102 +94,59 @@ export default function Sidebar({
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex flex-col text-white transition-all duration-300",
-          "bg-[#2e1065]",
-          "shadow-[6px_0_32px_-12px_rgba(30,11,69,0.55)]",
-          collapsed ? "w-[240px] lg:w-[64px]" : "w-[240px] lg:w-[240px]",
+          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-surface-border bg-surface-subtle transition-transform duration-300",
           open ? "translate-x-0" : "-translate-x-full",
           "lg:sticky lg:top-0 lg:h-screen lg:translate-x-0"
         )}
       >
-        {/* brand */}
-        <div
-          className={cn(
-            "flex items-center gap-2.5 px-5 pb-6 pt-6",
-            collapsed && "lg:flex-col lg:gap-3 lg:px-0 lg:pb-4"
-          )}
-        >
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-white shadow-[0_4px_14px_-4px_rgba(0,0,0,0.45)]">
-            <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
-              <path
-                d="M6 22l6-8 5 5 9-12"
-                stroke="#7c3aed"
-                strokeWidth="3.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <circle cx="26" cy="7" r="3" fill="#a855f7" />
-            </svg>
-          </span>
-          {!collapsed && (
-            <div className="min-w-0">
-              <p className="font-display text-[18px] font-bold leading-none tracking-[-0.02em] text-white">
-                Nex<span className="text-[#d8b4fe]">ora</span>
-              </p>
-              <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.18em] text-white/55">
-                Private Trading Journal
-              </p>
-            </div>
-          )}
-          <div className={cn("flex items-center", collapsed ? "lg:flex-col lg:gap-2" : "ml-auto")}>
-            <button
-              className="hidden rounded-md p-1 text-white/60 hover:bg-white/10 hover:text-white lg:grid"
-              onClick={onToggleCollapsed}
-              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-            </button>
-            <button
-              className="rounded-md p-1 text-white/60 hover:bg-white/10 hover:text-white lg:hidden"
-              onClick={onClose}
-            >
-              <X size={16} />
-            </button>
+        {/* Brand Section */}
+        <div className="flex items-center gap-3 px-2 py-3 mb-6 border-b border-surface-border">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-neon-purple to-neon-pink flex items-center justify-center shadow-[var(--shadow-neon-pill)]">
+            <BookOpen className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <span className="text-xl font-bold tracking-wide text-white">
+              Trade<span className="text-neon-violet">Log</span>
+            </span>
+            <span className="text-[10px] block font-medium uppercase tracking-widest text-faint">Analytics Pro</span>
           </div>
         </div>
 
-        {/* nav */}
-        <nav className="mt-6 flex-1 space-y-1 overflow-y-auto px-3 pb-4">
-          {!collapsed && (
-            <p className="px-3 pb-2 text-[9px] font-bold uppercase tracking-[0.16em] text-white/40">
-              Workspace
-            </p>
-          )}
+        {/* Add Trade CTA */}
+        <div className="px-4 mb-6">
+          <button
+            className="neon-button w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-white font-medium text-sm"
+            onClick={() => { onNavigate("trades"); onClose(); }}
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Trade</span>
+          </button>
+        </div>
+
+        {/* Navigation Menu */}
+        <nav className="flex-1 px-3 space-y-1.5 text-sm font-medium text-faint" aria-label="Main Navigation">
           {NAV.map((item) => {
-            const Icon = item.icon;
             const isActive = active === item.id;
             return (
               <button
                 key={item.id}
-                title={collapsed ? item.name : undefined}
-                onClick={() => {
-                  onNavigate(item.id);
-                  onClose();
-                }}
+                onClick={() => { onNavigate(item.id); onClose(); }}
                 className={cn(
-                  "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[12.5px] font-semibold transition-all duration-200",
-                  collapsed && "lg:justify-center lg:px-0",
+                  "flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all",
                   isActive
-                    ? "bg-white text-[#5b21b6] shadow-[0_6px_16px_-6px_rgba(0,0,0,0.45)]"
-                    : "text-white/70 hover:bg-white/[0.13] hover:text-white"
+                    ? "text-neon-violet bg-neon-purple/10 border border-neon-purple/50 shadow-[var(--shadow-neon-subtle)]"
+                    : "hover:text-white hover:bg-surface-card-hover"
                 )}
               >
-                <Icon
-                  size={15}
-                  className={cn(
-                    "shrink-0 transition-transform duration-200",
-                    isActive
-                      ? "text-[#7c3aed]"
-                      : "text-white/50 group-hover:translate-x-0.5 group-hover:text-white"
-                  )}
-                />
-                {!collapsed && <span className="truncate">{item.name}</span>}
-                {!collapsed && item.badge && (
-                  <span
-                    className={cn(
-                      "ml-auto rounded px-1.5 py-0.5 text-[8.5px] font-extrabold tracking-wider",
-                      isActive ? "bg-[#ede9fe] text-[#6d28d9]" : "bg-white/15 text-white/80"
-                    )}
+                <item.icon className={cn("w-4 h-4", isActive ? "text-neon-violet" : "text-faint group-hover:text-neon-violet")} />
+                <span>{item.name}</span>
+                {item.badge && (
+                  <span className="ml-auto px-1.5 py-0.5 rounded text-[10px] font-semibold border"
+                    style={{
+                      backgroundColor: item.badgeVariant === "new" ? "rgba(168, 85, 247, 0.2)" : "rgba(192, 132, 252, 0.2)",
+                      color: item.badgeVariant === "new" ? "#C084FC" : "#E879F9",
+                      borderColor: item.badgeVariant === "new" ? "rgba(168, 85, 247, 0.3)" : "rgba(192, 132, 252, 0.3)"
+                    }}
                   >
                     {item.badge}
                   </span>
@@ -203,48 +156,19 @@ export default function Sidebar({
           })}
         </nav>
 
-        {/* settings */}
-        <div className="border-t border-white/12 px-3 py-3">
-          <button
-            title={collapsed ? "Settings" : undefined}
-            onClick={() => {
-              onNavigate("settings");
-              onClose();
-            }}
-            className={cn(
-              "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[12.5px] font-semibold transition-all duration-200",
-              collapsed && "lg:justify-center lg:px-0",
-              active === "settings"
-                ? "bg-white text-[#5b21b6] shadow-[0_6px_16px_-6px_rgba(0,0,0,0.45)]"
-                : "text-white/70 hover:bg-white/[0.13] hover:text-white"
-            )}
-          >
-            <Settings
-              size={15}
-              className={cn(
-                "shrink-0 transition-transform duration-300",
-                active === "settings" ? "text-[#7c3aed]" : "text-white/50 group-hover:rotate-45 group-hover:text-white"
-              )}
-            />
-            {!collapsed && <span className="truncate">Settings</span>}
-          </button>
-
-          {/* footer user */}
-          <div
-            className={cn(
-              "mt-3 flex items-center gap-3 border-t border-white/12 px-1 pt-3",
-              collapsed && "lg:justify-center lg:px-0"
-            )}
-          >
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-[11px] font-extrabold text-[#4c1d95]">
-              {initials(name)}
-            </span>
-            {!collapsed && (
-              <div className="min-w-0">
-                <p className="truncate text-[12px] font-bold text-white">{name}</p>
-                <p className="text-[10px] text-white/55">Private vault · encrypted</p>
+        {/* Sidebar Footer: User Profile */}
+        <div className="pt-4 border-t border-surface-border">
+          <div className="flex items-center justify-between p-2 rounded-xl bg-surface-card/60 hover:bg-surface-card cursor-pointer border border-surface-border/50 transition-all">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full ring-2 ring-neon-purple/60 overflow-hidden bg-purple-900/50 flex items-center justify-center text-xs font-bold text-white">
+                {initials(name)}
               </div>
-            )}
+              <div>
+                <p className="text-xs font-semibold text-white">{name}</p>
+                <p className="text-[11px] text-faint">Futures & Equity</p>
+              </div>
+            </div>
+            <Settings className="w-4 h-4 text-faint hover:text-neon-violet transition-colors" />
           </div>
         </div>
       </aside>
