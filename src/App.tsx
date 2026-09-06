@@ -30,13 +30,11 @@ import Replay from "./components/Replay";
 import TradeDetail from "./components/TradeDetail";
 import ComingSoon from "./components/ComingSoon";
 import Mt5Bridge from "./components/Mt5Bridge";
-import Unlock from "./components/Unlock";
 import AnalyzeLosses from "./components/AnalyzeLosses";
 import Accounts from "./components/Accounts";
 import Risk from "./components/Risk";
 import Settings from "./components/Settings";
 import { Reveal, Seg, Card, CardHead, Sparkline, PnlText, ChartTip } from "./components/ui";
-import { canUseVault, lockVault, migrateLegacy, trySessionUnlock, vaultExists, vaultGet, vaultSet } from "./lib/vault";
 import { accountTagSet, generateOpenPositions, SEED_ACCOUNTS } from "./lib/risk";
 import { fmtMoney, fmtPct } from "./lib/format";
 import { cn } from "./utils/cn";
@@ -661,28 +659,6 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   );
 }
 
-let AppComponent: React.ComponentType;
+const App = () => <JournalApp dark={true} onToggleDark={() => {}} onLock={() => {}} />;
 
-if (!canUseVault()) {
-  AppComponent = () => (
-    <div className="min-h-screen bg-canvas dark flex items-center justify-center">
-      <Unlock onUnlock={() => window.location.reload()} />
-    </div>
-  );
-} else if (!vaultExists()) {
-  AppComponent = () => (
-    <div className="min-h-screen bg-canvas dark flex items-center justify-center">
-      <Unlock onUnlock={() => window.location.reload()} />
-    </div>
-  );
-} else if (trySessionUnlock()) {
-  AppComponent = () => <JournalApp dark={true} onToggleDark={() => {}} onLock={() => {}} />;
-} else {
-  AppComponent = () => (
-    <div className="min-h-screen bg-canvas dark flex items-center justify-center">
-      <Unlock onUnlock={() => window.location.reload()} />
-    </div>
-  );
-}
-
-export default AppComponent;
+export default App;
