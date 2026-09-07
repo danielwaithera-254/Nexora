@@ -191,6 +191,94 @@ textarea:focus-visible {
   border-radius: inherit;
 }
 
+/* =========================================================
+   CARD DEFINITION — stronger elevation & borders
+   ========================================================= */
+.card {
+  background: var(--panel);
+  border: 1.5px solid var(--edge);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+.card:hover {
+  box-shadow: var(--shadow-lg);
+  border-color: var(--edge2);
+}
+.card-strong {
+  background: var(--panel);
+  border: 2px solid var(--edge);
+  border-radius: 18px;
+  box-shadow: var(--shadow-lg);
+}
+.card-elevated {
+  background: var(--panel);
+  border: 1.5px solid var(--edge);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+}
+.card-elevated:hover {
+  box-shadow: 0 4px 8px rgba(26, 21, 51, 0.08), 0 32px 64px -24px rgba(76, 29, 149, 0.4);
+  transform: translateY(-2px);
+}
+.dark .card-elevated:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.6), 0 32px 64px -24px rgba(0, 0, 0, 0.95);
+  transform: translateY(-2px);
+}
+
+/* KPI cards specific */
+.kpi-card {
+  background: var(--panel);
+  border: 1.5px solid var(--edge);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+.kpi-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--brand), var(--brand-deep));
+  opacity: 0.15;
+}
+.kpi-card:hover {
+  box-shadow: var(--shadow-lg);
+  border-color: var(--edge2);
+}
+
+/* Chart cards */
+.chart-card {
+  background: var(--panel);
+  border: 1.5px solid var(--edge);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+.chart-card:hover {
+  box-shadow: var(--shadow-lg);
+  border-color: var(--edge2);
+}
+
+/* Table card */
+.table-card {
+  background: var(--panel);
+  border: 1.5px solid var(--edge);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+/* Calendar card */
+.cal-card {
+  background: var(--panel);
+  border: 1.5px solid var(--edge);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+
 /* recharts: kill the default focus rectangle on bars/sectors */
 .recharts-wrapper :focus,
 .recharts-surface:focus,

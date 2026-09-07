@@ -22,7 +22,7 @@ export default function RadarCard({ scores }: { scores: { overall: number; axes:
   const tone =
     scores.overall >= 65 ? "var(--gain)" : scores.overall >= 40 ? "var(--brand)" : "var(--loss)";
   return (
-    <Card className="flex h-full flex-col">
+    <Card className="flex h-full flex-col" elevated>
       <CardHead title="Performance Score" info="Composite of profit factor, win rate, risk control, discipline and consistency." icon={<Target size={14} />} />
       <div className="h-52 px-2">
         <ResponsiveContainer width="100%" height="100%">

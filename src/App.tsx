@@ -7,7 +7,7 @@ import KpiCards from "./components/KpiCards";
 import RadarCard from "./components/charts/RadarCard";
 import CumPnLCard from "./components/charts/CumPnLCard";
 import HeatmapCard from "./components/charts/HeatmapCard";
-import BalanceCard from "./components/charts/BalanceCard";
+
 import DonutCard from "./components/charts/DonutCard";
 import WeekdayBarCard from "./components/charts/WeekdayBarCard";
 import Calendar from "./components/Calendar";
@@ -183,10 +183,7 @@ export default function App() {
               </Reveal>
             </div>
             <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12">
-              <Reveal delay={80} className="h-[320px] lg:col-span-5 lg:h-[420px]">
-                <BalanceCard data={bal} />
-              </Reveal>
-              <Reveal delay={120} className="lg:col-span-7">
+              <Reveal delay={120} className="lg:col-span-12">
                 <Calendar trades={calTrades} />
               </Reveal>
             </div>

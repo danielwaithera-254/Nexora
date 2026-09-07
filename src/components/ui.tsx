@@ -6,16 +6,20 @@ export function Card({
   children,
   className,
   hover,
+  elevated,
 }: {
   children: ReactNode;
   className?: string;
   hover?: boolean;
+  elevated?: boolean;
 }) {
   return (
     <section
       className={cn(
-        "sheen themed relative overflow-hidden rounded-2xl border border-edge bg-panel",
-        "shadow-[var(--shadow)] transition-[transform,box-shadow,border-color] duration-300 ease-out",
+        "sheen themed relative overflow-hidden rounded-2xl",
+        elevated
+          ? "card-elevated border-2 border-edge"
+          : "card border-1.5 border-edge",
         hover &&
           "hover:-translate-y-[3px] hover:border-brand/30 hover:shadow-[var(--shadow-lg)]",
         className

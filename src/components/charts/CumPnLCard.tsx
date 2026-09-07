@@ -29,7 +29,7 @@ export default function CumPnLCard({ data }: { data: { date: string; value: numb
   }, [data]);
 
   return (
-    <Card className="flex h-full flex-col">
+    <Card className="flex h-full flex-col" elevated>
       <CardHead
         title="Daily Net Cumulative P&L"
         info="Running total of realized P&L per trading day for the selected view."

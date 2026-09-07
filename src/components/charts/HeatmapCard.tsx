@@ -47,7 +47,7 @@ export default function HeatmapCard({ trades }: { trades: Trade[] }) {
   const days = ["Mon", "", "Wed", "", "Fri", "", "Sun"];
 
   return (
-    <Card className="flex h-full flex-col">
+    <Card className="flex h-full flex-col" elevated>
       <CardHead
         title="Progress Tracker"
         info="Daily P&L intensity over the trailing 12 weeks. Green days are profitable, red days are losses."
@@ -74,7 +74,7 @@ export default function HeatmapCard({ trades }: { trades: Trade[] }) {
                   ? "transparent"
                   : rec
                     ? rec.pnl > 0
-                      ? `color-mix(in srgb, var(--gain) ${alpha}%, transparent)`
+                      ? `color-mix(in srgb, var(--gain) ${Math.min(100, alpha + 20)}%, transparent)`
                       : rec.pnl < 0
                         ? `color-mix(in srgb, var(--loss) ${alpha}%, transparent)`
                         : "var(--edge2)"
