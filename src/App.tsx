@@ -1,19 +1,33 @@
 ﻿import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle,
-  ArrowDownRight,
-  BarChart3,
-  Camera,
-  CheckCircle2,
-  Info,
+  LayoutDashboard,
+  BookOpen,
+  LineChart,
   NotebookPen,
-  Plus,
+  BarChart3,
+  Layers,
   Sparkles,
+  RotateCw,
+  GraduationCap,
+  RadioTower,
+  CalendarDays,
+  Wallet,
+  ShieldAlert,
+  Settings,
+  Plus,
+  Moon,
+  Sun,
+  Download,
   Upload,
+  Search,
+  Sparkle,
+  RefreshCw,
+  SlidersHorizontal,
+  ChevronDown,
+  X,
 } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
-import ControlBar from "./components/ControlBar";
 import KpiCards from "./components/KpiCards";
 import RadarCard from "./components/charts/RadarCard";
 import CumPnLCard from "./components/charts/CumPnLCard";
@@ -35,7 +49,7 @@ import AnalyzeLosses from "./components/AnalyzeLosses";
 import Accounts from "./components/Accounts";
 import Risk from "./components/Risk";
 import Settings from "./components/Settings";
-import { Reveal, Seg, Card, CardHead, Sparkline, PnlText, ChartTip } from "./components/ui";
+import { Card, CardHead } from "./components/ui";
 import { accountTagSet, generateOpenPositions, SEED_ACCOUNTS } from "./lib/risk";
 import { fmtMoney, fmtPct } from "./lib/format";
 import { cn } from "./utils/cn";
@@ -45,8 +59,6 @@ import {
   generateTrades,
   tradesToCSV,
   sampleCSV,
-  STRATEGIES,
-  ACCOUNTS,
   type Trade,
 } from "./data/trades";
 import {
@@ -310,7 +322,15 @@ function SymbolRow({ symbol, pnl, count, max }: { symbol: string; pnl: number; c
   );
 }
 
-function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDark: () => void; onLock: () => void }) {
+function JournalApp() {
+  const [dark, setDark] = useState(() => localStorage.getItem("nexora-dark") === "1");
+  const toggleDark = () => {
+    const next = !dark;
+    setDark(next);
+    localStorage.setItem("nexora-dark", next ? "1" : "0");
+    document.documentElement.classList.toggle("dark", next);
+  };
+
   const [trades, setTrades] = useState<Trade[]>(() => {
     const raw = vaultGet<Trade[]>("trades", generateTrades());
     const seen = new Set<string>();
@@ -323,7 +343,6 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   });
   const [filters, setFilters] = useState<Filters>({ range: "week", strategy: "All", account: "All" });
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [page, setPage] = useState<PageId>("dashboard");
   const [detail, setDetail] = useState<Trade | null>(null);
@@ -628,7 +647,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   };
 
   return (
-    <div className="min-h-screen bg-canvas dark flex">
+    <div className="min-h-screen bg-canvas flex" style={{ background: dark ? "var(--canvas)" : "var(--canvas)" }}>
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -641,9 +660,8 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
         <TopBar
           onMenu={() => setSidebarOpen(true)}
           dark={dark}
-          onToggleDark={onToggleDark}
+          onToggleDark={toggleDark}
           onInsights={() => setInsightsOpen(true)}
-          onLock={onLock}
           syncLabel={syncLabel}
           pageLabel={page}
           accounts={accountOptions}
@@ -668,10 +686,6 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
     </div>
   );
 }
-
-const App = () => <JournalApp dark={true} onToggleDark={() => {}} onLock={() => {}} />;
-
-
-
+const App = () => <JournalApp />;
 
 export default App;

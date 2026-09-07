@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Card } from "./ui";
 import { cn } from "../utils/cn";
 import { fmtMoney } from "../lib/format";
-import { TrendingUp, Target, Sparkles, BarChart3, RotateCw, ShieldAlert } from "lucide-react";
+import { TrendingUp, Target, ShieldAlert, BarChart3, RotateCw } from "lucide-react";
 
 export default function KpiCards({
   trades,
@@ -43,7 +43,7 @@ export default function KpiCards({
       trend: "+14.2% vs prev",
       positive: stats.pnl >= 0,
       icon: <TrendingUp className="w-4 h-4" />,
-      badge: stats.pnl < 0 ? "-$3.2K Peak" : null,
+      badge: "-$3.2K Peak",
       badgeColor: "danger",
     },
     {
@@ -78,7 +78,7 @@ export default function KpiCards({
       trend: `${fmtMoney(stats.avgWin)} / ${fmtMoney(-stats.avgLoss)}`,
       positive: stats.winLossRatio >= 1,
       icon: <RotateCw className="w-4 h-4" />,
-      barProgress: stats.winLossRatio >= 1 ? 0.6 : 0.4,
+      barProgress: stats.winLossRatio >= 1 ? 0.65 : 0.4,
     },
   ];
 
@@ -89,8 +89,8 @@ export default function KpiCards({
           <div className="flex items-center justify-between text-xs text-faint mb-2">
             <span className="font-medium">{card.label}</span>
             {card.badge && (
-              <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
-                card.badgeColor === "danger" ? "bg-neon-danger/20 text-neon-danger border-neon-danger/30" :
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                card.badgeColor === "danger" ? "bg-[rgba(232,59,176,0.15)] text-[var(--neon-danger)] border-[var(--neon-danger)]/40" :
                 "bg-neon-purple/20 text-neon-violet border-neon-purple/30"
               }`}>
                 {card.badge}
@@ -98,7 +98,9 @@ export default function KpiCards({
             )}
           </div>
           <div className="mb-2">
-            <div className="text-2xl font-extrabold text-white tracking-tight">{card.value}</div>
+            <div className="text-2xl font-extrabold text-white tracking-tight drop-shadow-[0_0_10px_rgba(168,85,247,0.4)]">
+              {card.value}
+            </div>
             <div className="flex items-center gap-1.5 mt-2 text-[11px] text-faint">
               <span className={cn("flex items-center font-semibold", card.positive ? "text-neon-success" : "text-neon-danger")}>
                 {card.positive ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingUp className="w-3 h-3 rotate-180 mr-1" />}
@@ -165,8 +167,8 @@ export default function KpiCards({
             {card.barProgress !== undefined && (
               <div className="space-y-1.5">
                 <div className="flex justify-between text-xs font-semibold">
-                  <span className="text-neon-success">+$34.82</span>
-                  <span className="text-neon-danger">-$51.32</span>
+                  <span className="text-neon-success">+{fmtMoney(card.avgWin ?? 34.82)}</span>
+                  <span className="text-neon-danger">-{fmtMoney(card.avgLoss ?? 51.32)}</span>
                 </div>
                 <div className="w-full flex h-2 rounded-full overflow-hidden bg-surface-border">
                   <div className="bg-neon-success h-full shadow-[0_0_6px_rgba(16,185,129,0.5)]" style={{ width: `${card.barProgress * 100}%` }} />

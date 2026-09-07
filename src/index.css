@@ -4,10 +4,14 @@
 
 :root {
   --canvas: #ffffff;
-  --surface-subtle: #f3f4f6;
+  --canvas-alt: #f8fafc;
+  --surface-subtle: #f1f5f9;
   --surface-card: #ffffff;
-  --surface-card-hover: #f9fafb;
-  --surface-border: #e5e7eb;
+  --surface-card-hover: #f8fafc;
+  --surface-inner: #f1f5f9;
+  --surface-inner-alt: #e2e8f0;
+  --surface-border: #e2e8f0;
+  --surface-border-highlight: #cbd5e1;
 
   --neon-purple: #A855F7;
   --neon-violet: #C084FC;
@@ -17,49 +21,57 @@
   --neon-success: #10B981;
   --neon-danger: #F43F5E;
 
-  --ink: #111827;
-  --mut: #6B7280;
-  --faint: #9CA3AF;
+  --ink: #0f172a;
+  --mut: #64748b;
+  --faint: #94a3b8;
 
   --shadow-neon-violet: 0 0 20px -3px rgba(192, 132, 252, 0.35);
   --shadow-neon-pill: 0 0 16px rgba(168, 85, 247, 0.45);
-  --shadow-neon-subtle: 0 0 12px rgba(168, 85, 247, 0.15);
+  --shadow-neon-subtle: 0 0 12px rgba(168, 85, 247, 0.2);
   --shadow-neon-card: 0 4px 20px -2px rgba(0, 0, 0, 0.1), 0 0 1px 1px rgba(192, 132, 252, 0.15);
 
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 }
 
 .dark {
-  --canvas: #ffffff;
-  --surface-subtle: #f3f4f6;
-  --surface-card: #ffffff;
-  --surface-card-hover: #f9fafb;
-  --surface-border: #e5e7eb;
+  --canvas: #070d1d;
+  --canvas-alt: #0a1228;
+  --surface-subtle: #0c152e;
+  --surface-card: #0f1c3a;
+  --surface-card-hover: #132349;
+  --surface-inner: #14244d;
+  --surface-inner-alt: #182b58;
+  --surface-border: #1b2b52;
+  --surface-border-highlight: #223868;
 
   --neon-purple: #A855F7;
   --neon-violet: #C084FC;
   --neon-fuchsia: #E879F9;
-  --neon-pink: #EC4899;
+  --neon-pink: #E024C3;
   --neon-glow: rgba(192, 132, 252, 0.35);
   --neon-success: #10B981;
-  --neon-danger: #F43F5E;
+  --neon-danger: #e83bb0;
 
-  --ink: #111827;
-  --mut: #6B7280;
-  --faint: #9CA3AF;
+  --ink: #e2e8f0;
+  --mut: #94a3b8;
+  --faint: #64748b;
 
   --shadow-neon-violet: 0 0 20px -3px rgba(192, 132, 252, 0.35);
   --shadow-neon-pill: 0 0 16px rgba(168, 85, 247, 0.45);
-  --shadow-neon-subtle: 0 0 12px rgba(168, 85, 247, 0.15);
-  --shadow-neon-card: 0 4px 20px -2px rgba(0, 0, 0, 0.1), 0 0 1px 1px rgba(192, 132, 252, 0.15);
+  --shadow-neon-subtle: 0 0 12px rgba(168, 85, 247, 0.2);
+  --shadow-neon-card: 0 4px 20px -2px rgba(5, 10, 24, 0.7), 0 0 1px 1px rgba(192, 132, 252, 0.25);
 }
 
 @theme inline {
   --color-canvas: var(--canvas);
+  --color-canvas-alt: var(--canvas-alt);
   --color-surface-subtle: var(--surface-subtle);
   --color-surface-card: var(--surface-card);
   --color-surface-card-hover: var(--surface-card-hover);
+  --color-surface-inner: var(--surface-inner);
+  --color-surface-inner-alt: var(--surface-inner-alt);
   --color-surface-border: var(--surface-border);
+  --color-surface-border-highlight: var(--surface-border-highlight);
   --color-neon-purple: var(--neon-purple);
   --color-neon-violet: var(--neon-violet);
   --color-neon-fuchsia: var(--neon-fuchsia);
@@ -70,12 +82,7 @@
   --color-ink: var(--ink);
   --color-mut: var(--mut);
   --color-faint: var(--faint);
-  --color-slate-200: #e2e8f0;
-  --color-purple-600: #9333ea;
-  --color-white: #ffffff;
-  --color-black: #000000;
   --font-sans: var(--font-sans);
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 html {
