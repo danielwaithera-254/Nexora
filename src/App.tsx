@@ -661,4 +661,5 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
 
 const App = () => <JournalApp dark={true} onToggleDark={() => {}} onLock={() => {}} />;
 
-export default App;
+export default App;/ /   t r i g g e r   r e b u i l d  
+ 
