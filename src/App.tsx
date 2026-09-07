@@ -1,61 +1,30 @@
-﻿import { useEffect, useCallback, useMemo, useRef, useState } from "react";
-import {
-  LayoutDashboard,
-  CalendarDays,
-  LineChart,
-  FilePen,
-  RadioTower,
-  FileText,
-  BookOpen,
-  Target,
-  RotateCcw,
-  Settings,
-  ChevronRight,
-  Bell,
-  ChevronDown,
-  Plus,
-  Sun,
-  Download,
-  Search,
-  Upload,
-  ChevronLeft,
-} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CheckCircle2, AlertTriangle, Info } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
-import FilterBar from "./components/FilterBar";
+import ControlBar from "./components/ControlBar";
 import KpiCards from "./components/KpiCards";
 import RadarCard from "./components/charts/RadarCard";
 import CumPnLCard from "./components/charts/CumPnLCard";
 import HeatmapCard from "./components/charts/HeatmapCard";
 import BalanceCard from "./components/charts/BalanceCard";
+import DonutCard from "./components/charts/DonutCard";
+import WeekdayBarCard from "./components/charts/WeekdayBarCard";
 import Calendar from "./components/Calendar";
-import OutcomeSplit from "./components/OutcomeSplit";
-import PnlWeekday from "./components/PnlWeekday";
-import TradeLogTable from "./components/TradeLogTable";
+import TradesTable from "./components/TradesTable";
 import InsightsDrawer from "./components/InsightsDrawer";
 import DailyJournal from "./components/DailyJournal";
 import Notebook from "./components/Notebook";
-import Attachments from "./components/Attachments";
-import Playbooks from "./components/Playbooks";
-import Reports from "./components/Reports";
-import Replay from "./components/Replay";
-import TradeDetail from "./components/TradeDetail";
 import ComingSoon from "./components/ComingSoon";
 import Mt5Bridge from "./components/Mt5Bridge";
-import AnalyzeLosses from "./components/AnalyzeLosses";
-import Accounts from "./components/Accounts";
-import Risk from "./components/Risk";
-import Settings from "./components/Settings";
-import FloatingBadge from "./components/FloatingBadge";
-import { accountTagSet, generateOpenPositions, SEED_ACCOUNTS } from "./lib/risk";
-import { fmtMoney } from "./lib/format";
-import { cn } from "./utils/cn";
-import { vaultGet, vaultSet } from "./lib/vault";
-
+import { Reveal } from "./components/ui";
 import {
   generateTrades,
+  parseTradesCSV,
   tradesToCSV,
   sampleCSV,
+  STRATEGIES,
+  ACCOUNTS,
   type Trade,
 } from "./data/trades";
 import {
@@ -71,6 +40,7 @@ import {
   withRisk,
   type Filters,
 } from "./lib/metrics";
+import { cn } from "./utils/cn";
 
 type PageId =
   | "dashboard"
@@ -78,80 +48,26 @@ type PageId =
   | "trades"
   | "mt5"
   | "notebook"
-  | "attachments"
-  | "reports"
   | "playbooks"
   | "progress"
   | "replay"
-  | "resources"
-  | "calendar"
-  | "accounts"
-  | "risk"
-  | "settings";
+  | "resources";
 
 interface Toast {
   msg: string;
   tone: "gain" | "loss" | "brand";
 }
 
-const SYNCED_OPTION = "__synced__";
-
-const isoToday = () => new Date().toISOString().slice(0, 10);
-
-const PERIODS = [
-  { key: "today", label: "Today" },
-  { key: "week", label: "7d" },
-  { key: "month", label: "30d" },
-  { key: "all", label: "All" },
-] as const;
-type PeriodKey = (typeof PERIODS)[number]["key"];
-const PERIOD_LABEL: Record<PeriodKey, string> = {
-  today: "Today",
-  week: "Last 7 days",
-  month: "Last 30 days",
-  all: "All time",
-};
-const isoDaysAgo = (n: number) => {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - n);
-  return d.toISOString().slice(0, 10);
-};
-
-function JournalApp() {
+export default function App() {
+  const [trades, setTrades] = useState<Trade[]>(() => generateTrades());
+  const [filters, setFilters] = useState<Filters>({ range: "90D", strategy: "All", account: "All" });
   const [dark, setDark] = useState(() => localStorage.getItem("nexora-dark") === "1");
-  const toggleDark = () => {
-    const next = !dark;
-    setDark(next);
-    localStorage.setItem("nexora-dark", next ? "1" : "0");
-    document.documentElement.classList.toggle("dark", next);
-  };
-
-  const [trades, setTrades] = useState<Trade[]>(() => {
-    const raw = vaultGet<Trade[]>("trades", generateTrades());
-    const seen = new Set<string>();
-    const out: Trade[] = [];
-    for (const t of raw) if (!seen.has(t.id)) {
-      seen.add(t.id);
-      out.push(t);
-    }
-    return out;
-  });
-  const [filters, setFilters] = useState<Filters>({ range: "week", strategy: "All", account: "All" });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [page, setPage] = useState<PageId>("dashboard");
-  const [detail, setDetail] = useState<Trade | null>(null);
-  const [analyzeOpen, setAnalyzeOpen] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
-  const [activeAccount, setActiveAccount] = useState<string>(
-    () => {
-      const stored = vaultGet<{ activeAccount?: string }>("settings", {}).activeAccount ?? "";
-      return stored === "All" ? "" : stored;
-    }
-  );
-  const [accountsVersion, setAccountsVersion] = useState(0);
+  const fileRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<number>(0);
-  const settings = vaultGet<{ name?: string }>("settings", {});
   const [syncLabel] = useState(() =>
     new Date().toLocaleString("en-US", {
       month: "short",
@@ -163,8 +79,9 @@ function JournalApp() {
   );
 
   useEffect(() => {
-    vaultSet("trades", trades);
-  }, [trades]);
+    document.documentElement.classList.toggle("dark", dark);
+    localStorage.setItem("nexora-dark", dark ? "1" : "0");
+  }, [dark]);
 
   const showToast = (msg: string, tone: Toast["tone"] = "brand") => {
     window.clearTimeout(toastTimer.current);
@@ -172,173 +89,39 @@ function JournalApp() {
     toastTimer.current = window.setTimeout(() => setToast(null), 3200);
   };
 
-  const changeAccount = (acc: string) => {
-    setActiveAccount(acc);
-    const settings = vaultGet<{ name?: string; activeAccount?: string }>("settings", {});
-    vaultSet("settings", { ...settings, activeAccount: acc });
-  };
-
-  const importTrades = useCallback(
-    (list: Trade[], accountName: string, sourceName: string) => {
-      if (!list.length) {
-        showToast("No valid rows found — expected an MT5 report or date,symbol,side,pnl CSV", "loss");
-        return;
-      }
-      let attached = 0;
-      let added = 0;
-      setTrades((prev) => {
-        const map = new Map(prev.map((t) => [t.id, t]));
-        for (const t of list) {
-          const existing = map.get(t.id);
-          if (existing) {
-            if (existing.account !== accountName) {
-              map.set(t.id, { ...existing, account: accountName });
-              attached++;
-            }
-          } else {
-            map.set(t.id, t);
-            added++;
-          }
-        }
-        return [...map.values()];
-      });
-      changeAccount(accountName);
-      setFilters({ range: "ALL", strategy: "All", account: "All" });
-      showToast(
-        added
-          ? `Imported ${added} trades into ${accountName}${attached ? `, re-attached ${attached} existing` : ""} (${sourceName})`
-          : attached
-            ? `Re-attached ${attached} existing trades to ${accountName} (${sourceName})`
-            : `All ${list.length} trades already belong to ${accountName} (${sourceName})`,
-        "gain"
-      );
-    },
-    []
-  );
-
-  const retagTrades = useCallback((from: string, to: string) => {
-    if (from === to) return;
-    setTrades((prev) => prev.map((t) => (t.account === from ? { ...t, account: to } : t)));
-    const settings = vaultGet<{ name?: string; activeAccount?: string }>("settings", {});
-    if (settings.activeAccount === from) {
-      setActiveAccount(to);
-      vaultSet("settings", { ...settings, activeAccount: to });
-    }
-    showToast(`Retagged ${from} → ${to}`, "brand");
-  }, []);
-
-  const deleteTrades = useCallback((tags: string[]) => {
-    const del = new Set(tags);
-    setTrades((prev) => prev.filter((t) => !del.has(t.account)));
-    const settings = vaultGet<{ name?: string; activeAccount?: string }>("settings", {});
-    if (settings.activeAccount && del.has(settings.activeAccount)) {
-      setActiveAccount("");
-      vaultSet("settings", { ...settings, activeAccount: "" });
-    }
-    showToast(`Removed trades tagged ${tags.join(", ")}`, "brand");
-  }, []);
-
-  const accountOptions = useMemo(() => {
-    const allAccounts = vaultGet("accounts", SEED_ACCOUNTS);
-    const tagToValue = new Map<string, string>();
-    const tagSets = new Map<string, Set<string>>();
-    const labels = new Map<string, string>();
-    for (const a of allAccounts) {
-      const value = a.tradeAccount || a.name;
-      const set = tagSets.get(value) ?? new Set<string>();
-      accountTagSet(a).forEach((t) => {
-        set.add(t);
-        if (!tagToValue.has(t)) tagToValue.set(t, value);
-      });
-      tagSets.set(value, set);
-      labels.set(value, a.name === value ? value : `${a.name} (${value})`);
-    }
-    const countFor = (tags: Set<string>) => trades.reduce((s, t) => s + (tags.has(t.account) ? 1 : 0), 0);
-    const options: { value: string; label: string }[] = [];
-    const syncedIds = vaultGet<{ syncedAccounts?: string[] }>("settings", {}).syncedAccounts ?? [];
-    const syncedAccs = allAccounts.filter((a) => syncedIds.includes(a.id));
-    if (syncedAccs.length >= 2) {
-      const syncedTags = new Set(syncedAccs.flatMap((a) => [...accountTagSet(a)]));
-      options.push({ value: SYNCED_OPTION, label: `Synced accounts (${syncedAccs.length}) · ${countFor(syncedTags)}` });
-    }
-    const seen = new Set<string>();
-    for (const [value, tags] of tagSets) {
-      seen.add(value);
-      options.push({ value, label: `${labels.get(value) ?? value} · ${countFor(tags)}` });
-    }
-    for (const tag of [...new Set(trades.map((t) => t.account).filter(Boolean))].sort((a, b) => a.localeCompare(b))) {
-      const value = tagToValue.get(tag) ?? tag;
-      if (seen.has(value)) continue;
-      seen.add(value);
-      options.push({ value, label: `${labels.get(value) ?? value} · ${countFor(tagSets.get(value) ?? new Set([value]))}` });
-    }
-    return options;
-  }, [accountsVersion, activeAccount, trades.length]);
-
-  const effectiveAccount = useMemo(() => {
-    if (activeAccount && accountOptions.some((o) => o.value === activeAccount)) return activeAccount;
-    return accountOptions[0]?.value ?? "";
-  }, [activeAccount, accountOptions]);
-
-  const scopedTrades = useMemo(() => {
-    if (!effectiveAccount) return trades;
-    const accounts = vaultGet("accounts", SEED_ACCOUNTS);
-    if (effectiveAccount === SYNCED_OPTION) {
-      const syncedIds = vaultGet<{ syncedAccounts?: string[] }>("settings", {}).syncedAccounts ?? [];
-      const sel = accounts.filter((a) => syncedIds.includes(a.id));
-      const tags = new Set(sel.flatMap((a) => [...accountTagSet(a)]));
-      return trades.filter((t) => tags.has(t.account));
-    }
-    const acc = accounts.find((a) => (a.tradeAccount || a.name) === effectiveAccount);
-    const tags = acc ? accountTagSet(acc) : new Set([effectiveAccount]);
-    return trades.filter((t) => tags.has(t.account));
-  }, [trades, effectiveAccount, accountsVersion]);
-
-  const { current, previous } = useMemo(() => splitByFilters(scopedTrades, filters), [scopedTrades, filters]);
+  const { current, previous } = useMemo(() => splitByFilters(trades, filters), [trades, filters]);
   const k = useMemo(() => withRisk(computeKpis(current), current), [current]);
   const prevK = useMemo(() => (previous.length ? computeKpis(previous) : null), [previous]);
   const spark = useMemo(() => sparkDaily(current), [current]);
   const cum = useMemo(() => cumSeries(current), [current]);
-  const accSettings = vaultGet<{ name?: string; customAccounts?: boolean }>("settings", {});
-  const startCapital = useMemo(() => {
-    const accounts = vaultGet("accounts", SEED_ACCOUNTS);
-    if (effectiveAccount === SYNCED_OPTION) {
-      const syncedIds = vaultGet<{ syncedAccounts?: string[] }>("settings", {}).syncedAccounts ?? [];
-      const sum = accounts
-        .filter((a) => syncedIds.includes(a.id))
-        .reduce((s, a) => s + a.balance, 0);
-      return sum || 25000;
-    }
-    if (effectiveAccount) {
-      const match = accounts.find((a) => (a.tradeAccount || a.name) === effectiveAccount);
-      if (match) return match.balance;
-    }
-    if (accSettings.customAccounts) return accounts.reduce((s, a) => s + a.balance, 0) || 25000;
-    return 25000;
-  }, [effectiveAccount, accSettings.customAccounts, accountsVersion]);
-  const bal = useMemo(() => balanceSeries(scopedTrades, startCapital), [scopedTrades, startCapital]);
+  const bal = useMemo(() => balanceSeries(current), [current]);
   const wd = useMemo(() => weekdaySeries(current), [current]);
   const donut = useMemo(() => donutData(k), [k]);
-  const scores = useMemo(() => {
-    const rs = radarScores(k);
-    return {
-      profitFactor: rs.axes.find((a) => a.axis === "Profit Factor")?.value ?? 0,
-      risk: rs.axes.find((a) => a.axis === "Risk Control")?.value ?? 0,
-      discipline: rs.axes.find((a) => a.axis === "Discipline")?.value ?? 0,
-      consistency: rs.axes.find((a) => a.axis === "Consistency")?.value ?? 0,
-      winRate: rs.axes.find((a) => a.axis === "Win Rate")?.value ?? 0,
-    };
-  }, [k]);
+  const scores = useMemo(() => radarScores(k), [k]);
   const ins = useMemo(() => insights(current, k), [current, k]);
   const calTrades = useMemo(
     () =>
-      scopedTrades.filter(
+      trades.filter(
         (t) =>
           (filters.strategy === "All" || t.strategy === filters.strategy) &&
           (filters.account === "All" || t.account === filters.account)
       ),
-    [scopedTrades, filters.strategy, filters.account]
+    [trades, filters.strategy, filters.account]
   );
+
+  const handleFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const parsed = parseTradesCSV(String(reader.result ?? ""));
+      if (parsed.length) {
+        setTrades((t) => [...t, ...parsed]);
+        showToast(`Imported ${parsed.length} trades from ${file.name}`, "gain");
+      } else {
+        showToast("No valid rows found — expected headers: date, symbol, side, pnl…", "loss");
+      }
+    };
+    reader.readAsText(file);
+  };
 
   const handleExport = () => {
     const csv = tradesToCSV(current);
@@ -360,130 +143,213 @@ function JournalApp() {
     a.download = "nexora-sample.csv";
     a.click();
     URL.revokeObjectURL(url);
-    showToast('Sample CSV downloaded — re-import it via "Import" to see it merge', "brand");
+    showToast("Sample CSV downloaded — re-import it via “Import” to see it merge", "brand");
   };
 
   const handleNavigate = (id: PageId) => {
     setPage(id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const renderPage = () => {
     switch (page) {
       case "dashboard":
         return (
-          <div className="space-y-6">
-            <FilterBar
-              tradesCount={scopedTrades.length}
-              onSearch={() => {}}
-              onSample={handleSample}
-              onImport={() => handleNavigate("mt5")}
-              onExport={handleExport}
+          <>
+            <Reveal>
+              <ControlBar
+                filters={filters}
+                onChange={(f) => setFilters((prev) => ({ ...prev, ...f }))}
+                strategies={[...STRATEGIES]}
+                accounts={[...ACCOUNTS]}
+                onImport={() => fileRef.current?.click()}
+                onExport={handleExport}
+                onSample={handleSample}
+                count={current.length}
+              />
+            </Reveal>
+            <Reveal delay={60}>
+              <KpiCards k={k} prev={prevK} spark={spark} />
+            </Reveal>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+              <Reveal delay={80} className="lg:col-span-3 lg:h-[372px]">
+                <RadarCard scores={scores} />
+              </Reveal>
+              <Reveal delay={120} className="h-[300px] lg:col-span-5 lg:h-[372px]">
+                <CumPnLCard data={cum} />
+              </Reveal>
+              <Reveal delay={160} className="lg:col-span-4 lg:h-[372px]">
+                <HeatmapCard trades={current} />
+              </Reveal>
+            </div>
+            <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12">
+              <Reveal delay={80} className="h-[320px] lg:col-span-5 lg:h-[420px]">
+                <BalanceCard data={bal} />
+              </Reveal>
+              <Reveal delay={120} className="lg:col-span-7">
+                <Calendar trades={calTrades} />
+              </Reveal>
+            </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+              <Reveal delay={80} className="h-[330px] lg:col-span-4 lg:h-[340px]">
+                <DonutCard data={donut} winRate={k.winRate} />
+              </Reveal>
+              <Reveal delay={120} className="h-[330px] lg:col-span-8 lg:h-[340px]">
+                <WeekdayBarCard data={wd} />
+              </Reveal>
+            </div>
+            <Reveal delay={80}>
+              <TradesTable trades={current} />
+            </Reveal>
+          </>
+        );
+      case "mt5":
+        return (
+          <Reveal>
+            <Mt5Bridge
+              onNewTrade={(t) => {
+                setTrades((prev) => [...prev, t]);
+                showToast(
+                  `Captured MT5 trade fill: ${t.symbol} ${t.side} (${t.pnl >= 0 ? "+" : ""}${t.pnl})`,
+                  "gain"
+                );
+              }}
             />
-
-            <KpiCards trades={scopedTrades} period={filters.range === "today" ? "today" : filters.range === "week" ? "week" : filters.range === "month" ? "month" : "all"} />
-
-            <section className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full lg:grid-cols-6" data-purpose="charts-middle-grid">
-              <RadarCard elo={57} scores={scores} />
-              <CumPnLCard trades={scopedTrades} />
-              <HeatmapCard />
-            </section>
-
-            <section className="grid grid-cols-1 gap-6">
-              <div className="grid grid-cols-1 gap-6">
-                <BalanceCard trades={scopedTrades} balance={25000} startBalance={25000} />
-              </div>
-              <Calendar trades={scopedTrades} />
-            </section>
-
-            <section className="grid grid-cols-1 gap-6 lg:grid-cols-2 w-full">
-              <OutcomeSplit />
-              <PnlWeekday />
-            </section>
-
-            <TradeLogTable />
-          </div>
+          </Reveal>
         );
       case "journal":
-        return <DailyJournal trades={trades} />;
-      case "trades":
-        return <TradeLogTable />;
-      case "mt5":
-        return <Mt5Bridge onReplaceTrades={importTrades} onNavigate={() => handleNavigate("trades")} />;
-      case "notebook":
-        return <Notebook trades={trades} />;
-      case "attachments":
-        return <Attachments />;
-      case "reports":
-        return <Reports trades={scopedTrades} />;
-      case "playbooks":
-        return <Playbooks trades={trades} />;
-      case "progress":
-        return <HeatmapCard />;
-      case "replay":
-        return <Replay trades={trades} />;
-      case "calendar":
-        return <Calendar trades={scopedTrades} />;
-      case "accounts":
         return (
-          <Accounts
-            trades={trades}
-            onImportTrades={importTrades}
-            onAccountsChanged={() => setAccountsVersion((v) => v + 1)}
-            onRetagTrades={retagTrades}
-            onDeleteTrades={deleteTrades}
-          />
+          <>
+            <Reveal>
+              <ControlBar
+                filters={filters}
+                onChange={(f) => setFilters((prev) => ({ ...prev, ...f }))}
+                strategies={[...STRATEGIES]}
+                accounts={[...ACCOUNTS]}
+                onImport={() => fileRef.current?.click()}
+                onExport={handleExport}
+                onSample={handleSample}
+                count={current.length}
+              />
+            </Reveal>
+            <Reveal delay={60}>
+              <DailyJournal trades={current} />
+            </Reveal>
+          </>
         );
-      case "risk":
-        return <Risk trades={scopedTrades} account={effectiveAccount} />;
-      case "settings":
-        return <Settings />;
-      default:
+      case "trades":
+        return (
+          <>
+            <Reveal>
+              <ControlBar
+                filters={filters}
+                onChange={(f) => setFilters((prev) => ({ ...prev, ...f }))}
+                strategies={[...STRATEGIES]}
+                accounts={[...ACCOUNTS]}
+                onImport={() => fileRef.current?.click()}
+                onExport={handleExport}
+                onSample={handleSample}
+                count={current.length}
+              />
+            </Reveal>
+            <Reveal delay={60}>
+              <TradesTable trades={current} />
+            </Reveal>
+          </>
+        );
+      case "notebook":
+        return (
+          <Reveal>
+            <Notebook trades={current} />
+          </Reveal>
+        );
+      case "playbooks":
+      case "progress":
+      case "replay":
+      case "resources":
         return <ComingSoon page={page} />;
     }
   };
 
+  const pageTitle: Record<PageId, string> = {
+    dashboard: "Dashboard",
+    journal: "Daily Journal",
+    trades: "Trades",
+    mt5: "MT5 Gateway",
+    notebook: "Notebook",
+    playbooks: "Playbooks",
+    progress: "Progress Tracker",
+    replay: "Trade Replay",
+    resources: "Resource Center",
+  };
+
   return (
-    <div className="min-h-screen bg-canvas flex" style={{ background: dark ? "var(--canvas)" : "var(--canvas)" }}>
+    <div className="flex min-h-screen bg-surface">
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onNavigate={handleNavigate}
+        onAddTrade={() => fileRef.current?.click()}
         active={page}
-        name={settings.name?.trim() || "Jordan Tate"}
       />
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col">
         <TopBar
           onMenu={() => setSidebarOpen(true)}
           dark={dark}
-          onToggleDark={toggleDark}
+          onToggleDark={() => setDark((d) => !d)}
           onInsights={() => setInsightsOpen(true)}
           syncLabel={syncLabel}
-          pageLabel={page}
-          accounts={accountOptions}
-          account={effectiveAccount}
-          onAccountChange={changeAccount}
+          pageLabel={pageTitle[page]}
         />
 
-        <main className="flex-1 px-4 md:px-8 py-6 space-y-6 overflow-y-auto">{renderPage()}</main>
+        <main className="mx-auto w-full max-w-[1520px] flex-1 space-y-4 p-4 sm:p-5">{renderPage()}</main>
+
+        <footer className="mx-auto w-full max-w-[1520px] px-4 pb-4 text-[10.5px] text-faint sm:px-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              Nexora · journal analytics for futures &amp; FX traders · data is simulated, CSV import/export is live
+            </span>
+            <span className="tnum">
+              {trades.length} trades on file · {current.length} in view
+            </span>
+          </div>
+        </footer>
       </div>
 
-      {toast && (
-        <div className={cn("fixed bottom-4 right-4 z-50 toast-in", toast.tone === "gain" ? "bg-emerald-500" : toast.tone === "loss" ? "bg-rose-500" : "bg-purple-500")}>
-          <div className="px-4 py-3 rounded-xl shadow-[var(--shadow-card)] text-white font-medium flex items-center gap-2">
-            {toast.msg}
-          </div>
-        </div>
-      )}
+      <InsightsDrawer open={insightsOpen} onClose={() => setInsightsOpen(false)} items={ins} />
 
-      {detail && <TradeDetail trade={detail} onClose={() => setDetail(null)} />}
-      {analyzeOpen && <AnalyzeLosses trades={trades} open={analyzeOpen} onClose={() => setAnalyzeOpen(false)} />}
-      {insightsOpen && <InsightsDrawer open={insightsOpen} onClose={() => setInsightsOpen(false)} items={ins} />}
-      <FloatingBadge />
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".csv,text/csv"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleFile(f);
+          e.target.value = "";
+        }}
+      />
+
+      <div
+        className={cn(
+          "fixed bottom-5 right-5 z-[70] transition-all",
+          toast ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"
+        )}
+      >
+        {toast && (
+          <div className="toast-in flex items-center gap-2.5 rounded-xl border border-edge bg-panel px-4 py-3 shadow-2xl">
+            {toast.tone === "gain" ? (
+              <CheckCircle2 size={16} className="text-gain" />
+            ) : toast.tone === "loss" ? (
+              <AlertTriangle size={16} className="text-loss" />
+            ) : (
+              <Info size={16} className="text-brand" />
+            )}
+            <span className="text-[12px] font-bold text-ink">{toast.msg}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-
-const App = () => <JournalApp />;
-
-export default App;

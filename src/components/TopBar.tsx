@@ -1,68 +1,69 @@
-import { cn } from "../utils/cn";
-import {
-  Sparkles,
-  Sun,
-  Bell,
-  Settings,
-  ChevronDown,
-} from "lucide-react";
-
-type TopBarProps = {
-  onMenu: () => void;
-  dark: boolean;
-  onToggleDark: () => void;
-  syncLabel: string;
-  pageLabel: string;
-  accounts: { value: string; label: string }[];
-  account: string;
-  onAccountChange: (v: string) => void;
-};
+import { Menu, Moon, Sun, Sparkles, Settings2, Bell } from "lucide-react";
 
 export default function TopBar({
   onMenu,
   dark,
   onToggleDark,
+  onInsights,
   syncLabel,
   pageLabel,
-  accounts,
-  account,
-  onAccountChange,
-}: TopBarProps) {
+}: {
+  onMenu: () => void;
+  dark: boolean;
+  onToggleDark: () => void;
+  onInsights: () => void;
+  syncLabel: string;
+  pageLabel: string;
+}) {
   return (
-    <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <header className="themed sticky top-0 z-30 flex items-center gap-3 border-b border-edge bg-surface/80 px-4 py-3 backdrop-blur-xl sm:px-6">
+      <button
+        onClick={onMenu}
+        className="rounded-lg border border-edge bg-panel p-2 text-mut transition-colors hover:text-ink lg:hidden"
+        aria-label="Open menu"
+      >
+        <Menu size={16} />
+      </button>
+
       <div>
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{pageLabel}</h2>
-        <div className="flex items-center space-x-2 text-xs text-slate-500 dark:text-slate-400 mt-1">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Last sync: {syncLabel}</span>
-        </div>
+        <h1 className="font-display text-lg font-bold leading-none tracking-tight text-ink">
+          {pageLabel}
+        </h1>
+        <p className="mt-1 flex items-center gap-1.5 text-[10.5px] font-medium text-mut">
+          <span className="pulse-dot inline-block h-1.5 w-1.5 rounded-full bg-gain" />
+          Last sync: {syncLabel}
+        </p>
       </div>
 
-      <div className="flex items-center space-x-3">
-        {/* Insights Button */}
-        <button className="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-full text-xs font-semibold shadow-sm flex items-center space-x-1.5 transition">
-          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-          <span>Insights</span>
+      <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+        <button
+          onClick={onInsights}
+          className="brand-gradient group flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[11.5px] font-bold text-white shadow-[0_6px_18px_-6px_var(--brand-ring)] transition-all hover:-translate-y-px hover:shadow-[0_10px_24px_-8px_var(--brand-ring)] active:translate-y-0 active:scale-95"
+        >
+          <Sparkles size={13} className="transition-transform duration-300 group-hover:rotate-12" />
+          <span className="hidden sm:inline">Insights</span>
         </button>
-
-        {/* Dark Mode Toggle */}
         <button
           onClick={onToggleDark}
-          className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm transition"
-          aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+          className="group relative rounded-xl border border-edge bg-panel p-2 text-mut transition-all hover:border-brand/40 hover:text-brand active:scale-90"
+          aria-label="Toggle dark mode"
         >
-          <Sun className="w-4 h-4" />
+          <span className="block transition-transform duration-500 group-hover:rotate-45">
+            {dark ? <Sun size={15} /> : <Moon size={15} />}
+          </span>
         </button>
-
-        {/* Notifications */}
-        <button className="relative p-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm transition" title="Notifications">
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-purple-600 rounded-full" />
+        <button
+          className="relative hidden rounded-xl border border-edge bg-panel p-2 text-mut transition-all hover:border-brand/40 hover:text-brand sm:block"
+          aria-label="Notifications"
+        >
+          <Bell size={15} />
+          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand ring-2 ring-panel" />
         </button>
-
-        {/* Settings */}
-        <button className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm transition" title="Settings">
-          <Settings className="w-4 h-4" />
+        <button
+          className="hidden rounded-xl border border-edge bg-panel p-2 text-mut transition-all hover:border-brand/40 hover:text-brand sm:block"
+          aria-label="Settings"
+        >
+          <Settings2 size={15} />
         </button>
       </div>
     </header>

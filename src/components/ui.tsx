@@ -6,20 +6,18 @@ export function Card({
   children,
   className,
   hover,
-  glow,
 }: {
   children: ReactNode;
   className?: string;
   hover?: boolean;
-  glow?: boolean;
 }) {
   return (
     <section
       className={cn(
-        "relative overflow-hidden rounded-2xl bg-surface-card border border-surface-border",
-        "shadow-[var(--shadow-neon-card)] transition-[transform,box-shadow,border-color] duration-300 ease-out",
-        hover && "hover:-translate-y-[3px] hover:border-neon-violet/60 hover:shadow-[var(--shadow-neon-violet)]",
-        glow && "neon-border-glow",
+        "sheen themed relative overflow-hidden rounded-2xl border border-edge bg-panel",
+        "shadow-[var(--shadow)] transition-[transform,box-shadow,border-color] duration-300 ease-out",
+        hover &&
+          "hover:-translate-y-[3px] hover:border-brand/30 hover:shadow-[var(--shadow-lg)]",
         className
       )}
     >
@@ -33,22 +31,20 @@ export function CardHead({
   info,
   right,
   icon,
-  className,
 }: {
   title: string;
   info?: string;
   right?: ReactNode;
   icon?: ReactNode;
-  className?: string;
 }) {
   return (
-    <header className={cn("flex flex-wrap items-center gap-x-2 gap-y-2 px-4 pt-4 pb-2.5 sm:px-5", className)}>
+    <header className="flex flex-wrap items-center gap-x-2 gap-y-2 px-4 pt-4 pb-2.5 sm:px-5">
       {icon && (
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-neon-purple/20 text-neon-purple border border-neon-purple/30">
+        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand">
           {icon}
         </span>
       )}
-      <h3 className="font-bold text-[13px] leading-none tracking-tight text-white">{title}</h3>
+      <h3 className="font-display text-[13px] font-bold tracking-tight text-ink">{title}</h3>
       {info && <InfoTip text={info} />}
       <div className="ml-auto flex flex-wrap items-center gap-2">{right}</div>
     </header>
@@ -58,8 +54,8 @@ export function CardHead({
 export function InfoTip({ text }: { text: string }) {
   return (
     <span className="group relative inline-flex">
-      <Info size={13} className="text-faint cursor-help transition-colors group-hover:text-neon-violet" />
-      <span className="pointer-events-none absolute left-1/2 top-full z-40 mt-1.5 w-52 -translate-x-1/2 translate-y-0 rounded-xl border border-surface-border bg-surface-card px-3 py-2 text-[11px] font-medium leading-snug text-mut opacity-0 shadow-[var(--shadow-neon-card)] transition-all duration-200 group-hover:translate-y-1 group-hover:opacity-100">
+      <Info size={13} className="text-faint cursor-help transition-colors group-hover:text-brand" />
+      <span className="pointer-events-none absolute left-1/2 top-full z-40 mt-1.5 w-52 -translate-x-1/2 translate-y-0 rounded-xl border border-edge bg-panel px-3 py-2 text-[11px] font-medium leading-snug text-mut opacity-0 shadow-[var(--shadow-lg)] transition-all duration-200 group-hover:translate-y-1 group-hover:opacity-100">
         {text}
       </span>
     </span>
@@ -140,7 +136,7 @@ export function Seg<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="flex items-center rounded-xl border border-surface-border bg-surface-card-hover p-1">
+    <div className="flex items-center rounded-xl border border-edge bg-panel2 p-1">
       {options.map((o) => (
         <button
           key={o.key}
@@ -148,8 +144,8 @@ export function Seg<T extends string>({
           className={cn(
             "rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all duration-200",
             value === o.key
-              ? "neon-button text-white shadow-[var(--shadow-neon-pill)]"
-              : "text-faint hover:bg-surface-border hover:text-white"
+              ? "brand-gradient text-white shadow-[0_2px_8px_-2px_var(--brand-ring)]"
+              : "text-mut hover:bg-brand-soft hover:text-brand"
           )}
         >
           {o.label}
@@ -175,7 +171,7 @@ export function SelectBox({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full cursor-pointer appearance-none rounded-xl border border-surface-border bg-surface-card-hover py-[7px] pl-3 pr-7 text-[11px] font-bold text-white outline-none transition-colors hover:border-neon-violet/50 hover:text-white focus:border-neon-purple"
+        className="w-full cursor-pointer appearance-none rounded-xl border border-edge bg-panel2 py-[7px] pl-3 pr-7 text-[11px] font-bold text-ink outline-none transition-colors hover:border-brand/45 hover:text-brand focus:border-brand"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -184,7 +180,7 @@ export function SelectBox({
         ))}
       </select>
       <svg
-        className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-faint"
+        className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-mut"
         width="10"
         height="10"
         viewBox="0 0 10 10"
@@ -199,7 +195,7 @@ export function SelectBox({
 export function Delta({ value, suffix = "%" }: { value: number | null; suffix?: string }) {
   if (value == null || !isFinite(value)) {
     return (
-      <span className="inline-flex items-center gap-0.5 rounded-md bg-surface-card-hover px-1.5 py-0.5 text-[10px] font-bold text-faint">
+      <span className="inline-flex items-center gap-0.5 rounded-md bg-panel2 px-1.5 py-0.5 text-[10px] font-bold text-faint">
         <Minus size={10} /> n/a
       </span>
     );
@@ -209,7 +205,7 @@ export function Delta({ value, suffix = "%" }: { value: number | null; suffix?: 
     <span
       className={cn(
         "inline-flex items-center gap-0.5 rounded-lg px-1.5 py-0.5 text-[10px] font-bold ring-1 tnum",
-        up ? "bg-neon-success/15 text-neon-success ring-neon-success/20" : "bg-neon-danger/15 text-neon-danger ring-neon-danger/20"
+        up ? "bg-gain-soft text-gain ring-gain/15" : "bg-loss-soft text-loss ring-loss/15"
       )}
     >
       {up ? <ArrowUpRight size={11} strokeWidth={2.5} /> : <ArrowDownRight size={11} strokeWidth={2.5} />}
@@ -234,6 +230,7 @@ export function Sparkline({ data, color }: { data: number[]; color: string }) {
     const y = h - 3 - ((v - min) / span) * (h - 6);
     return [x, y] as const;
   });
+  // smooth the polyline with midpoint quadratic curves
   let line = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
   for (let i = 1; i < pts.length; i++) {
     const [px, py] = pts[i - 1];
@@ -265,7 +262,7 @@ export function PnlText({ value, className }: { value: number; className?: strin
     <span
       className={cn(
         "tnum font-semibold",
-        value > 0 ? "text-neon-success" : value < 0 ? "text-neon-danger" : "text-faint",
+        value > 0 ? "text-gain" : value < 0 ? "text-loss" : "text-mut",
         className
       )}
     >
@@ -275,21 +272,22 @@ export function PnlText({ value, className }: { value: number; className?: strin
   );
 }
 
+/* shared Recharts tooltip */
 export function ChartTip({ active, payload, label, fmt }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl border border-surface-border bg-surface-card/95 px-3 py-2 text-xs shadow-[var(--shadow-neon-card)] backdrop-blur-md">
+    <div className="rounded-xl border border-edge bg-panel/95 px-3 py-2 text-xs shadow-[var(--shadow-lg)] backdrop-blur-md">
       {label != null && (
-        <div className="mb-1.5 font-bold text-[11.5px] text-white">{label}</div>
+        <div className="mb-1.5 font-display text-[11.5px] font-bold text-ink">{label}</div>
       )}
       {payload.map((p: any, i: number) => (
         <div key={i} className="flex items-center gap-2 tnum">
           <span
-            className="h-2 w-2 shrink-0 rounded-full ring-2 ring-surface-card"
+            className="h-2 w-2 shrink-0 rounded-full ring-2 ring-panel"
             style={{ background: p.color || p.payload?.fill || p.fill }}
           />
-          <span className="text-[11px] text-faint">{p.name}</span>
-          <span className="ml-auto pl-4 text-[11.5px] font-bold text-white">
+          <span className="text-[11px] text-mut">{p.name}</span>
+          <span className="ml-auto pl-4 text-[11.5px] font-bold text-ink">
             {fmt ? fmt(p.value) : p.value}
           </span>
         </div>

@@ -1,92 +1,95 @@
-import { Card } from "../ui";
-import { fmtMoney } from "../../lib/format";
+import { useMemo } from "react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { Card, CardHead, ChartTip } from "../ui";
+import { Activity } from "lucide-react";
+import { fmtCompact, fmtDate, fmtDateShort, fmtMoney } from "../../lib/format";
 
-interface Trade {
-  date: string;
-  pnl: number;
-}
+export default function CumPnLCard({ data }: { data: { date: string; value: number; daily: number }[] }) {
+  const { max, min, zeroFrac } = useMemo(() => {
+    const vals = data.map((d) => d.value);
+    const mx = Math.max(0, ...vals);
+    const mn = Math.min(0, ...vals);
+    const span = mx - mn || 1;
+    return { max: mx, min: mn, zeroFrac: mx / span };
+  }, [data]);
 
-export default function CumPnLCard({ trades }: { trades: Trade[] }) {
-  const sorted = [...trades].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  let cum = 0;
-  const series = sorted.map((t) => {
-    cum += t.pnl;
-    return { date: t.date, cum };
-  });
-
-  const maxCum = Math.max(...series.map((s) => s.cum), 0);
-  const minCum = Math.min(...series.map((s) => s.cum), 0);
+  const ticks = useMemo(() => {
+    if (data.length < 2) return [];
+    const step = Math.max(1, Math.floor(data.length / 5));
+    return data.filter((_, i) => i % step === 0).map((d) => d.date);
+  }, [data]);
 
   return (
-    <Card className="p-4 card-shadow flex flex-col justify-between relative lg:col-span-2">
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center space-x-2">
-            <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" /></svg>
-            </div>
-            <h3 className="font-bold text-slate-800 dark:text-white text-sm truncate">Daily Net Cumulative P&L</h3>
-          </div>
-          <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-100 dark:border-emerald-900/30">+{fmtMoney(maxCum)}</span>
-        </div>
-        <div className="relative w-full h-44 mt-1">
-          <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 450 200">
-            <line stroke="#f1f5f9" strokeWidth="1" x1="30" x2="440" y1="20" y2="20" />
-            <line stroke="#f1f5f9" strokeWidth="1" x1="30" x2="440" y1="65" y2="65" />
-            <line stroke="#94a3b8" strokeDasharray="4 4" strokeWidth="1" x1="30" x2="440" y1="110" y2="110" />
-            <line stroke="#f1f5f9" strokeWidth="1" x1="30" x2="440" y1="155" y2="155" />
-            <line stroke="#94a3b8" strokeDasharray="3 3" strokeWidth="1" x1="145" x2="145" y1="20" y2="190" />
-            <text fill="#94a3b8" fontSize="9" textAnchor="end" x="25" y="24">{fmtMoney(maxCum)}</text>
-            <text fill="#94a3b8" fontSize="9" textAnchor="end" x="25" y="69">{fmtMoney(maxCum * 0.66)}</text>
-            <text fill="#94a3b8" fontSize="9" textAnchor="end" x="25" y="113">$0</text>
-            <text fill="#94a3b8" fontSize="9" textAnchor="end" x="25" y="158">{fmtMoney(minCum)}</text>
-            
-            {/* Draw the actual data path */}
-            <path 
-              d={series.map((s, i) => {
-                const x = 40 + (i / Math.max(1, series.length - 1)) * 400;
-                const y = 110 - ((s.cum - minCum) / Math.max(maxCum - minCum, 1)) * 130;
-                return `${i === 0 ? "M" : "L"} ${x} ${y}`;
-              }).join(" ")}
-              fill="none" 
-              stroke="#ef4444" 
-              strokeLinecap="round" 
-              strokeWidth="2.5" 
+    <Card className="flex h-full flex-col">
+      <CardHead
+        title="Daily Net Cumulative P&L"
+        info="Running total of realized P&L per trading day for the selected view."
+        icon={<Activity size={14} />}
+        right={
+          <span className="rounded-md bg-panel2 px-2 py-1 text-[10px] font-bold text-mut tnum">
+            {data.length ? fmtMoney(data[data.length - 1].value, { sign: true }) : "$0"}
+          </span>
+        }
+      />
+      <div className="min-h-0 flex-1 px-2 pb-3">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 12, right: 8, left: -14, bottom: 0 }}>
+            <defs>
+              <linearGradient id="cumFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--gain)" stopOpacity={0.32} />
+                <stop offset={`${zeroFrac * 100}%`} stopColor="var(--gain)" stopOpacity={0.02} />
+                <stop offset={`${zeroFrac * 100}%`} stopColor="var(--loss)" stopOpacity={0.02} />
+                <stop offset="100%" stopColor="var(--loss)" stopOpacity={0.3} />
+              </linearGradient>
+              <linearGradient id="cumStroke" x1="0" y1="0" x2="0" y2="1">
+                <stop offset={`${Math.max(0, zeroFrac * 100 - 0.5)}%`} stopColor="var(--gain)" />
+                <stop offset={`${Math.min(100, zeroFrac * 100 + 0.5)}%`} stopColor="var(--loss)" />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke="var(--edge2)" vertical={false} />
+            <XAxis
+              dataKey="date"
+              ticks={ticks}
+              tickFormatter={fmtDateShort}
+              tick={{ fontSize: 9.5, fill: "var(--faint)" }}
+              axisLine={false}
+              tickLine={false}
             />
-            <path 
-              d={series.map((s, i) => {
-                const x = 40 + (i / Math.max(1, series.length - 1)) * 400;
-                const y = 110 - ((s.cum - minCum) / Math.max(maxCum - minCum, 1)) * 130;
-                return `${i === 0 ? "M" : "L"} ${x} ${y}`;
-              }).join(" ")}
-              fill="none" 
-              stroke="#10b981" 
-              strokeLinecap="round" 
-              strokeWidth="2.5" 
+            <YAxis
+              domain={[min - Math.abs(max - min) * 0.05, max + Math.abs(max - min) * 0.08]}
+              tickFormatter={(v) => fmtCompact(v)}
+              tick={{ fontSize: 9.5, fill: "var(--faint)" }}
+              axisLine={false}
+              tickLine={false}
+              width={52}
             />
-            
-            {/* Peak point */}
-            <circle 
-              cx={40 + ((series.length - 1) / Math.max(1, series.length - 1)) * 400} 
-              cy={110 - ((series[series.length - 1].cum - minCum) / Math.max(maxCum - minCum, 1)) * 130} 
-              fill="#10b981" r="4.5" stroke="#ffffff" strokeWidth="2" 
+            <Tooltip
+              content={<ChartTip fmt={(v: number) => fmtMoney(v, { sign: true })} />}
+              labelFormatter={(l) => fmtDate(String(l))}
+              cursor={{ stroke: "var(--faint)", strokeDasharray: "3 3" }}
             />
-          </svg>
-          <div className="absolute left-[20%] top-[45%] bg-white dark:bg-slate-800 rounded-xl p-2 shadow-xl border border-slate-100 dark:border-slate-700 chart-tooltip-shadow text-xs z-10 pointer-events-none">
-            <p className="font-bold text-slate-800 dark:text-white text-[10px] mb-0.5">Latest</p>
-            <div className="flex items-center space-x-2">
-              <span className="text-slate-500 dark:text-slate-400 text-[9px]">Cumul P&L</span>
-              <span className="font-black text-emerald-600 dark:text-emerald-400 text-[10px]">{fmtMoney(series[series.length - 1]?.cum ?? 0)}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="flex justify-between text-[10px] text-mut px-2 pt-2 font-medium border-t border-slate-100 dark:border-slate-700">
-        <span>{series[0]?.date ?? ""}</span>
-        <span>{series[Math.floor(series.length / 4)]?.date ?? ""}</span>
-        <span>{series[Math.floor(series.length / 2)]?.date ?? ""}</span>
-        <span>{series[Math.floor(series.length * 0.75)]?.date ?? ""}</span>
-        <span>{series[series.length - 1]?.date ?? ""}</span>
+            <ReferenceLine y={0} stroke="var(--faint)" strokeDasharray="4 4" />
+            <Area
+              type="monotone"
+              dataKey="value"
+              name="Cumulative P&L"
+              stroke="url(#cumStroke)"
+              strokeWidth={2.2}
+              fill="url(#cumFill)"
+              activeDot={{ r: 4, strokeWidth: 0 }}
+              animationDuration={800}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
     </Card>
   );

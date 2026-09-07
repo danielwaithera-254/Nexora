@@ -1,86 +1,120 @@
-import { Card } from "../ui";
-import { ChevronRight } from "lucide-react";
+import { useMemo } from "react";
+import { Card, CardHead } from "../ui";
+import { Grid3x3 } from "lucide-react";
+import type { Trade } from "../../data/trades";
+import { dailyMap } from "../../lib/metrics";
+import { fmtDateShort, fmtMoney } from "../../lib/format";
 
-const HEATMAP_DATA = [
-  [1, 2, 1, 0, 2, 3, 2],
-  [0, 2, 1, 2, 0, 2, 2],
-  [1, 2, 2, 0, 2, 3, 2],
-  [2, 1, 2, 1, 2, 0, 3],
-  [0, 2, 3, 2, 1, 0, 2],
-  [2, 3, 1, 2, 2, 1, 2],
-  [1, 1, 2, 2, 3, 1, 2],
-];
+const iso = (d: Date) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+};
 
-const intensityColors = [
-  "bg-slate-100 dark:bg-slate-800",   // 0 - dormant
-  "bg-emerald-200 dark:bg-emerald-900/30",  // 1 - light
-  "bg-rose-200 dark:bg-rose-900/30",        // 2 - loss
-  "bg-emerald-300 dark:bg-emerald-600",     // 3 - strong
-  "bg-emerald-400 dark:bg-emerald-500",     // 4 - flourishing
-];
+export default function HeatmapCard({ trades }: { trades: Trade[] }) {
+  const { weeks, maxAbs, net } = useMemo(() => {
+    const map = dailyMap(trades);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(today);
+    start.setDate(start.getDate() - 83);
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
 
-const MONTHS = ["Jul", "Aug", "Sep"];
+    let mx = 1;
+    let sum = 0;
+    const wks: { key: string; inFuture: boolean }[][] = [];
+    const cur = new Date(start);
+    for (let w = 0; w < 12; w++) {
+      const col: { key: string; inFuture: boolean }[] = [];
+      for (let d = 0; d < 7; d++) {
+        const key = iso(cur);
+        const inFuture = cur.getTime() > today.getTime();
+        const cell = map.get(key);
+        if (cell) {
+          mx = Math.max(mx, Math.abs(cell.pnl));
+          sum += cell.pnl;
+        }
+        col.push({ key, inFuture });
+        cur.setDate(cur.getDate() + 1);
+      }
+      wks.push(col);
+    }
+    return { weeks: wks, maxAbs: mx, net: sum };
+  }, [trades]);
 
-export default function HeatmapCard({
-  year = new Date().getFullYear(),
-}: { year?: number }) {
+  const map = useMemo(() => dailyMap(trades), [trades]);
+  const days = ["Mon", "", "Wed", "", "Fri", "", "Sun"];
+
   return (
-    <Card className="p-4 card-shadow flex flex-col justify-between lg:col-span-2">
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center space-x-2">
-            <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect height="7" width="7" x="3" y="3" /><rect height="7" width="7" x="14" y="3" /><rect height="7" width="7" x="14" y="14" /><rect height="7" width="7" x="3" y="14" /></svg>
-            </div>
-            <h3 className="font-bold text-slate-800 dark:text-white text-sm">Progress Tracker</h3>
+    <Card className="flex h-full flex-col">
+      <CardHead
+        title="Progress Tracker"
+        info="Daily P&L intensity over the trailing 12 weeks. Green days are profitable, red days are losses."
+        icon={<Grid3x3 size={14} />}
+        right={
+          <span className={`rounded-md px-2 py-1 text-[10px] font-bold tnum ${net >= 0 ? "bg-gain-soft text-gain" : "bg-loss-soft text-loss"}`}>
+            {fmtMoney(net, { sign: true })}
+          </span>
+        }
+      />
+      <div className="flex flex-1 flex-col justify-center px-5 pb-4">
+        <div className="flex gap-[5px]">
+          <div className="mr-1 flex flex-col justify-between py-[1px] text-[8.5px] font-bold text-faint">
+            {days.map((d, i) => (
+              <span key={i} className="h-[18px] leading-[18px]">{d}</span>
+            ))}
           </div>
-          <span className="text-xs font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-100 dark:border-emerald-900/30">+$6,342</span>
-        </div>
-        <div className="my-2 overflow-x-auto">
-          <div className="flex space-x-1 items-start text-xs min-w-[200px]">
-            <div className="flex flex-col space-y-2 text-[10px] text-mut font-medium pr-1 pt-0.5">
-              <span>Mon</span>
-              <span>&nbsp;</span>
-              <span>Wed</span>
-              <span>&nbsp;</span>
-              <span>Fri</span>
-              <span>&nbsp;</span>
-              <span>Sun</span>
+          {weeks.map((col, wi) => (
+            <div key={wi} className="flex flex-1 flex-col gap-[5px]">
+              {col.map((cell) => {
+                const rec = map.get(cell.key);
+                const alpha = rec ? 20 + 75 * (Math.abs(rec.pnl) / maxAbs) : 0;
+                const bg = cell.inFuture
+                  ? "transparent"
+                  : rec
+                    ? rec.pnl > 0
+                      ? `color-mix(in srgb, var(--gain) ${alpha}%, transparent)`
+                      : rec.pnl < 0
+                        ? `color-mix(in srgb, var(--loss) ${alpha}%, transparent)`
+                        : "var(--edge2)"
+                    : "var(--edge2)";
+                return (
+                  <div key={cell.key} className="group relative h-[18px] flex-1">
+                    <div
+                      className="h-full w-full rounded-[4px] transition-transform duration-150 group-hover:scale-110 group-hover:ring-1 group-hover:ring-brand"
+                      style={{ background: bg }}
+                    />
+                    {!cell.inFuture && (
+                      <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-edge bg-panel px-2 py-1 text-[10px] font-semibold text-ink shadow-xl group-hover:block tnum">
+                        {fmtDateShort(cell.key)} ·{" "}
+                        <span className={rec && rec.pnl > 0 ? "text-gain" : rec && rec.pnl < 0 ? "text-loss" : "text-mut"}>
+                          {rec ? fmtMoney(rec.pnl, { sign: true }) : "flat"}
+                        </span>
+                        {rec ? ` · ${rec.count}t` : ""}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            <div className="grid grid-flow-col grid-rows-7 gap-1 flex-1">
-              {HEATMAP_DATA.flatMap((row, rowIdx) =>
-                row.map((val, colIdx) => (
-                  <div
-                    key={`${rowIdx}-${colIdx}`}
-                    className={`w-3.5 h-3.5 rounded-sm ${intensityColors[Math.min(val, intensityColors.length - 1)]}`}
-                  />
-                ))
-              )}
-            </div>
-          </div>
+          ))}
         </div>
-      </div>
-      <div className="flex items-center justify-between text-[10px] text-mut pt-2 border-t border-slate-100 dark:border-slate-700">
-        <span>12w ago</span>
-        <div className="flex items-center space-x-1">
-          <span>Less</span>
-          <span className="w-2 h-2 rounded-sm bg-slate-200 dark:bg-slate-700" />
-          <span className="w-2 h-2 rounded-sm bg-emerald-200 dark:bg-emerald-900/30" />
-          <span className="w-2 h-2 rounded-sm bg-emerald-400 dark:bg-emerald-600" />
-          <span className="w-2 h-2 rounded-sm bg-emerald-600 dark:bg-emerald-500" />
-          <span>More</span>
+        <div className="mt-4 flex items-center justify-between text-[9.5px] font-bold text-faint">
+          <span>12 weeks ago</span>
+          <span className="flex items-center gap-1">
+            Less
+            {[0, 25, 50, 75, 100].map((a) => (
+              <span
+                key={a}
+                className="h-2.5 w-2.5 rounded-[3px]"
+                style={{ background: `color-mix(in srgb, var(--gain) ${a}%, var(--edge2))` }}
+              />
+            ))}
+            More
+          </span>
+          <span>Today</span>
         </div>
-        <span className="font-medium text-slate-500 dark:text-slate-400">Today</span>
-      </div>
-      <div className="flex items-center justify-between text-[10px] text-mut pt-2 border-t border-slate-100 dark:border-slate-700">
-        <span>Today's score <span className="inline-block ml-1 w-2 h-2 rounded-full bg-mut" /></span>
-        <div className="text-center">
-          <div className="text-sm font-bold text-ink dark:text-white">4/6</div>
-          <div className="w-16 h-1 bg-slate-100 dark:bg-slate-800 rounded-full mt-1">
-            <div className="bg-purple-600 h-full rounded-full" style={{ width: "66%" }} />
-          </div>
-        </div>
-        <button className="border border-slate-200 dark:border-slate-700 px-3 py-1 rounded text-[10px] font-bold hover:bg-slate-50 dark:hover:bg-slate-800">Button</button>
       </div>
     </Card>
   );

@@ -1,42 +1,94 @@
-import { Card } from "../ui";
-import { fmtMoney } from "../../lib/format";
+import { useMemo } from "react";
+import {
+  Area,
+  CartesianGrid,
+  ComposedChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { Card, CardHead, ChartTip } from "../ui";
+import { Wallet } from "lucide-react";
+import { fmtCompact, fmtDate, fmtDateShort, fmtMoney } from "../../lib/format";
 
-export default function BalanceCard({ 
-  trades = [],
-  balance = 18450,
-  startBalance = 10000,
-}: { 
-  trades?: { date: string; pnl: number }[];
-  balance: number;
-  startBalance: number;
+export default function BalanceCard({
+  data,
+}: {
+  data: { date: string; balance: number }[];
 }) {
+  const ticks = useMemo(() => {
+    if (data.length < 2) return [];
+    const step = Math.max(1, Math.floor(data.length / 5));
+    return data.filter((_, i) => i % step === 0).map((d) => d.date);
+  }, [data]);
+
+  const last = data.length ? data[data.length - 1] : null;
+
   return (
-    <Card className="p-6 card-shadow">
-      <div className="flex items-center gap-2 mb-6">
-        <h3 className="font-bold text-slate-800 dark:text-white">Account Balance</h3>
-      </div>
-      <div className="flex gap-4 text-[10px] mb-4">
-        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500" /> <span className="text-mut">Account Balance</span></div>
-        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-400" /> <span className="text-mut">Deposits / Withdrawals</span></div>
-      </div>
-      <div className="h-40 relative">
-        <svg className="w-full h-full" viewBox="0 0 300 150">
-          <line stroke="#f1f5f9" strokeWidth="1" x1="0" x2="300" y1="20" y2="20" />
-          <line stroke="#f1f5f9" strokeWidth="1" x1="0" x2="300" y1="50" y2="50" />
-          <line stroke="#f1f5f9" strokeWidth="1" x1="0" x2="300" y1="80" y2="80" />
-          <line stroke="#f1f5f9" strokeWidth="1" x1="0" x2="300" y1="110" y2="110" />
-          <line stroke="#f1f5f9" strokeWidth="1" x1="0" x2="300" y1="140" y2="140" />
-          <path d="M 0,130 Q 75,120 150,110 T 300,80" fill="none" stroke="#3b82f6" strokeWidth="2" />
-          <path d="M 0,150 Q 75,150 150,140 T 300,120" fill="none" stroke="#f87171" strokeWidth="2" />
-        </svg>
-        <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-[9px] text-mut">
-          <span>{fmtMoney(5000)}</span>
-          <span>{fmtMoney(4000)}</span>
-          <span>{fmtMoney(3000)}</span>
-          <span>{fmtMoney(2000)}</span>
-          <span>{fmtMoney(1000)}</span>
-          <span>{fmtMoney(0)}</span>
-        </div>
+    <Card className="flex h-full flex-col">
+      <CardHead
+        title="Account Balance"
+        info="Live equity curve synced from MT5, updated automatically as positions close."
+        icon={<Wallet size={14} />}
+        right={
+          <div className="flex items-center gap-3 text-[10px] font-bold">
+            <span className="flex items-center gap-1.5 text-mut">
+              <span className="h-2 w-2 rounded-full bg-brand" /> Account Balance
+            </span>
+          </div>
+        }
+      />
+      {last && (
+        <p className="px-5 pb-1 font-display text-xl font-bold text-ink tnum">
+          {fmtMoney(last.balance)}
+          <span className="ml-2 text-[11px] font-semibold text-gain">
+            Live Equity Sync Active
+          </span>
+        </p>
+      )}
+      <div className="min-h-0 flex-1 px-2 pb-3">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+            <defs>
+              <linearGradient id="balFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--brand)" stopOpacity={0.28} />
+                <stop offset="100%" stopColor="var(--brand)" stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke="var(--edge2)" vertical={false} />
+            <XAxis
+              dataKey="date"
+              ticks={ticks}
+              tickFormatter={fmtDateShort}
+              tick={{ fontSize: 9.5, fill: "var(--faint)" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              domain={["dataMin - 800", "dataMax + 800"]}
+              tickFormatter={(v) => fmtCompact(v)}
+              tick={{ fontSize: 9.5, fill: "var(--faint)" }}
+              axisLine={false}
+              tickLine={false}
+              width={56}
+            />
+            <Tooltip
+              content={<ChartTip fmt={(v: number) => fmtMoney(v)} />}
+              labelFormatter={(l) => fmtDate(String(l))}
+              cursor={{ stroke: "var(--faint)", strokeDasharray: "3 3" }}
+            />
+            <Area
+              type="monotone"
+              dataKey="balance"
+              name="Balance"
+              stroke="var(--brand)"
+              strokeWidth={2.2}
+              fill="url(#balFill)"
+              animationDuration={800}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
       </div>
     </Card>
   );
