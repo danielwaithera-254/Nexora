@@ -505,7 +505,16 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   const bal = useMemo(() => balanceSeries(scopedTrades, startCapital), [scopedTrades, startCapital]);
   const wd = useMemo(() => weekdaySeries(current), [current]);
   const donut = useMemo(() => donutData(k), [k]);
-  const scores = useMemo(() => radarScores(k), [k]);
+  const scores = useMemo(() => {
+    const rs = radarScores(k);
+    return {
+      profitFactor: rs.axes.find((a) => a.axis === "Profit Factor")?.value ?? 0,
+      risk: rs.axes.find((a) => a.axis === "Risk Control")?.value ?? 0,
+      discipline: rs.axes.find((a) => a.axis === "Discipline")?.value ?? 0,
+      resilience: rs.axes.find((a) => a.axis === "Consistency")?.value ?? 0,
+      winRate: rs.axes.find((a) => a.axis === "Win Rate")?.value ?? 0,
+    };
+  }, [k]);
   const ins = useMemo(() => insights(current, k), [current, k]);
   const calTrades = useMemo(
     () =>
@@ -570,7 +579,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
             {/* Bottom Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               <div className="lg:col-span-5 space-y-6">
-                <BalanceCard trades={scopedTrades} balance={25000} />
+                <BalanceCard trades={scopedTrades} balance={25000} startBalance={25000} />
                 <TradesTable trades={scopedTrades} onSelect={setDetail} />
               </div>
               <div className="lg:col-span-7">
@@ -580,23 +589,23 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
           </div>
         );
       case "journal":
-        return <DailyJournal trades={trades} onSelect={setDetail} />;
+        return <DailyJournal trades={trades} />;
       case "trades":
         return <TradesTable trades={scopedTrades} onSelect={setDetail} />;
       case "mt5":
-        return <Mt5Bridge />;
+        return <Mt5Bridge onReplaceTrades={importTrades} onNavigate={() => handleNavigate("trades")} />;
       case "notebook":
-        return <Notebook />;
+        return <Notebook trades={trades} />;
       case "attachments":
         return <Attachments />;
       case "reports":
         return <Reports trades={scopedTrades} />;
       case "playbooks":
-        return <Playbooks />;
+        return <Playbooks trades={trades} />;
       case "progress":
         return <HeatmapCard />;
       case "replay":
-        return <Replay />;
+        return <Replay trades={trades} />;
       case "calendar":
         return <Calendar trades={scopedTrades} />;
       case "accounts":
@@ -612,9 +621,9 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
       case "risk":
         return <Risk trades={scopedTrades} account={effectiveAccount} />;
       case "settings":
-        return <Settings dark={dark} onToggleDark={onToggleDark} onLock={onLock} />;
+        return <Settings />;
       default:
-        return <ComingSoon />;
+        return <ComingSoon page={page} />;
     }
   };
 
@@ -626,8 +635,6 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
         onNavigate={handleNavigate}
         active={page}
         name={settings.name?.trim() || "Daniel"}
-        collapsed={sidebarCollapsed}
-        onToggleCollapsed={() => setSidebarCollapsed((c) => !c)}
       />
 
       <div className="flex-1 flex flex-col min-w-0">

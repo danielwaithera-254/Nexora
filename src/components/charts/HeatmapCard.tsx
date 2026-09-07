@@ -18,7 +18,7 @@ export default function HeatmapCard({
   ];
 
   return (
-    <Card className="p-5 flex flex-col justify-between" elevated>
+    <Card className="p-5 flex flex-col justify-between" glow>
       <CardHead
         title="Trading Frequency Grid"
         right={

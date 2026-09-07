@@ -41,7 +41,7 @@ export default function RadarCard({
   });
 
   return (
-    <Card className="p-5 flex flex-col justify-between" elevated>
+    <Card className="p-5 flex flex-col justify-between" glow>
       <CardHead
         title="Trader Diagnostic Radar"
         right={

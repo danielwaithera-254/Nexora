@@ -1,5 +1,6 @@
 import { Card, CardHead } from "../ui";
 import { fmtMoney } from "../../lib/format";
+import { Sparkles } from "lucide-react";
 
 interface Trade {
   date: string;
@@ -28,7 +29,7 @@ export default function CumPnLCard({ trades }: { trades: Trade[] }) {
   const areaPoints = `${points} 400,180 0,180`;
 
   return (
-    <Card className="p-5 flex flex-col justify-between" elevated>
+    <Card className="p-5 flex flex-col justify-between" glow>
       <CardHead
         title="Daily Cumulative P&L"
         info="Equity curve trajectory"

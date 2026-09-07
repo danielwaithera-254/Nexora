@@ -1,5 +1,6 @@
 import { Card, CardHead } from "../ui";
 import { fmtMoney } from "../../lib/format";
+import { Wallet } from "lucide-react";
 
 export default function BalanceCard({ 
   trades = [],
@@ -36,7 +37,7 @@ export default function BalanceCard({
   }).join(" ");
 
   return (
-    <Card className="p-5" elevated>
+    <Card className="p-5" glow>
       <CardHead
         title="Account Balance Growth"
         info={`+${fmtMoney(balance - startBalance)} Net Growth`}
