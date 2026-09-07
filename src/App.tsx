@@ -337,6 +337,7 @@ function JournalApp({ dark, onToggleDark, onLock }: { dark: boolean; onToggleDar
   );
   const [accountsVersion, setAccountsVersion] = useState(0);
   const toastTimer = useRef<number>(0);
+  const settings = vaultGet<{ name?: string }>("settings", {});
   const [syncLabel] = useState(() =>
     new Date().toLocaleString("en-US", {
       month: "short",
