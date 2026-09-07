@@ -1,87 +1,79 @@
 import { Card, CardHead } from "../ui";
-import { Sparkles, CheckSquare, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+
+const HEATMAP_DATA = [
+  [1, 2, 1, 0, 2, 3, 2, 1, 0, 2, 3, 1],
+  [0, 2, 1, 2, 0, 2, 2, 1, 2, 2, 2, 1],
+  [1, 2, 2, 0, 2, 3, 2, 1, 0, 2, 2, 1],
+  [2, 1, 2, 1, 2, 0, 3, 2, 1, 2, 1, 2],
+  [0, 2, 3, 2, 1, 0, 2, 2, 1, 2, 1, 2],
+  [2, 3, 1, 2, 2, 1, 2, 1, 3, 1, 2, 0],
+  [1, 1, 2, 2, 3, 1, 2, 1, 2, 1, 2, 1],
+];
+
+const intensityColors = [
+  "bg-surface-border",        // 0 - dormant
+  "bg-purple-100",            // 1 - light
+  "bg-purple-300",            // 2 - medium
+  "bg-purple-500",            // 3 - strong
+  "bg-purple-700",            // 4 - flourishing
+];
+
+const MONTHS = ["Jul", "Aug", "Sep"];
 
 export default function HeatmapCard({
   year = new Date().getFullYear(),
 }: { year?: number }) {
-  // Generate sample heatmap data (5 weeks x 7 days)
-  const weeks = Array.from({ length: 5 }, (_, w) => 
-    Array.from({ length: 7 }, (_, d) => Math.random() > 0.5 ? Math.floor(Math.random() * 4) : 0)
-  );
-
-  const intensityColors = [
-    "bg-canvas/50 border border-surface-border/30",        // 0 - dormant
-    "bg-purple-950/60 border border-purple-500/20",        // 1 - light
-    "bg-purple-600",                                        // 2 - medium
-    "bg-purple-400 shadow-sm shadow-purple-500/30",        // 3 - strong
-    "bg-purple-300 shadow-[0_0_8px_rgba(192,132,252,0.5)]", // 4 - flourishing
-  ];
-
   return (
-    <Card className="p-5 flex flex-col justify-between" glow>
-      <CardHead
-        title="Trading Frequency Grid"
-        right={
-          <span className="bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded text-[9px] font-bold">Beta</span>
-        }
-        icon={<CheckSquare className="w-4 h-4 text-neon-purple" />}
-      />
-
-      <div className="flex flex-col">
-        <div className="flex justify-between text-[10px] text-faint font-medium mb-1.5 px-6">
-          <span>Oct</span>
-          <span>Nov</span>
-          <span>Dec</span>
+    <Card className="p-6 card-shadow flex flex-col">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <h3 className="font-bold text-ink">Progress tracker</h3>
+          <span className="bg-yellow-100 text-yellow-700 text-[10px] px-1.5 py-0.5 rounded font-bold">Beta</span>
         </div>
-        <div className="flex gap-1.5 justify-center">
-          {/* Weekday Labels */}
-          <div className="flex flex-col justify-between text-[9px] text-faint/70 py-0.5">
-            <span>M</span>
-            <span>W</span>
-            <span>F</span>
+        <button className="text-blue-500 text-xs font-semibold hover:underline flex items-center gap-1">
+          View more <ChevronRight className="w-3 h-3" />
+        </button>
+      </div>
+      <div className="flex-1 flex flex-col justify-center">
+        <div className="flex gap-16 mb-2 text-xs text-mut ml-8">
+          {MONTHS.map((m) => <span key={m}>{m}</span>)}
+        </div>
+        <div className="flex gap-2">
+          <div className="flex flex-col gap-1.5 text-[9px] text-mut pt-1">
+            <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
           </div>
-          {/* Matrix */}
-          <div className="grid grid-flow-col grid-rows-5 gap-1.5 flex-1">
-            {weeks[0].map((intensity, d) => (
-              <div key={`0-${d}`} className={`w-full aspect-square rounded-sm ${intensityColors[intensity]}`} />
-            ))}
-            {weeks[1].map((intensity, d) => (
-              <div key={`1-${d}`} className={`w-full aspect-square rounded-sm ${intensityColors[intensity]}`} />
-            ))}
-            {weeks[2].map((intensity, d) => (
-              <div key={`2-${d}`} className={`w-full aspect-square rounded-sm ${intensityColors[intensity]}`} />
-            ))}
-            {weeks[3].map((intensity, d) => (
-              <div key={`3-${d}`} className={`w-full aspect-square rounded-sm ${intensityColors[intensity]}`} />
-            ))}
-            {weeks[4].map((intensity, d) => (
-              <div key={`4-${d}`} className={`w-full aspect-square rounded-sm ${intensityColors[intensity]}`} />
-            ))}
+          <div className="grid grid-cols-12 grid-rows-7 gap-1">
+            {HEATMAP_DATA.flatMap((row, rowIdx) =>
+              row.map((val, colIdx) => (
+                <div
+                  key={`${rowIdx}-${colIdx}`}
+                  className={`heatmap-cell ${intensityColors[Math.min(val, intensityColors.length - 1)]}`}
+                />
+              ))
+            )}
           </div>
         </div>
       </div>
-
-      {/* Legend & Today Score */}
-      <div className="mt-4 pt-3 flex items-center justify-between border-t border-surface-border">
-        <div className="flex items-center gap-1.5 font-mono text-[9px] text-faint">
-          <span>Dormant</span>
-          <div className="flex gap-1">
-            <div className="w-2.5 h-2.5 rounded-sm bg-canvas/50 border border-surface-border/30" />
-            <div className="w-2.5 h-2.5 rounded-sm bg-purple-950/60 border border-purple-500/20" />
-            <div className="w-2.5 h-2.5 rounded-sm bg-purple-600" />
-            <div className="w-2.5 h-2.5 rounded-sm bg-purple-400" />
-            <div className="w-2.5 h-2.5 rounded-sm bg-purple-300" />
+      <div className="mt-4 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] text-mut">Less</span>
+          <div className="flex gap-0.5">
+            {intensityColors.map((c, i) => (
+              <div key={i} className={`heatmap-cell ${c}`} />
+            ))}
           </div>
-          <span>Flourishing</span>
+          <span className="text-[9px] text-mut">More</span>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <div className="text-[9px] font-mono text-faint uppercase">Today's Score</div>
-            <div className="text-xs font-bold text-neon-violet">4 / 6 Rules</div>
+        <div className="flex items-center gap-4">
+          <div className="text-center">
+            <div className="text-[9px] text-mut uppercase">Today's score <span className="inline-block ml-1" style={{ width: 12, height: 12, borderRadius: "50%", background: "#6b7280" }} /></div>
+            <div className="text-sm font-bold text-ink">4/6</div>
+            <div className="w-16 h-1 bg-surface-border rounded-full mt-1">
+              <div className="bg-purple-600 h-full rounded-full" style={{ width: "66%" }} />
+            </div>
           </div>
-          <button className="border border-neon-violet/40 hover:border-neon-violet px-2.5 py-1 rounded text-[10px] font-mono font-medium text-neon-violet hover:bg-neon-purple/10 transition-colors">
-            <ChevronRight className="w-3 h-3 ml-1" /> Details
-          </button>
+          <button className="border border-surface-border px-3 py-1 rounded text-[10px] font-bold hover:bg-surface-hover">Button</button>
         </div>
       </div>
     </Card>

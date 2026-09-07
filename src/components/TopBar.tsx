@@ -1,12 +1,18 @@
 import { cn } from "../utils/cn";
-import { ShieldAlert, SlidersHorizontal, CalendarDays, ChevronDown, Wallet, Sparkles, Sun, Download, Settings, RefreshCw, Search, Sparkle } from "lucide-react";
+import {
+  Search,
+  CalendarDays,
+  ChevronDown,
+  Settings,
+  Sparkles,
+  Download,
+  Sun,
+} from "lucide-react";
 
 type TopBarProps = {
   onMenu: () => void;
   dark: boolean;
   onToggleDark: () => void;
-  onInsights: () => void;
-  onLock: () => void;
   syncLabel: string;
   pageLabel: string;
   accounts: { value: string; label: string }[];
@@ -18,8 +24,6 @@ export default function TopBar({
   onMenu,
   dark,
   onToggleDark,
-  onInsights,
-  onLock,
   syncLabel,
   pageLabel,
   accounts,
@@ -27,110 +31,93 @@ export default function TopBar({
   onAccountChange,
 }: TopBarProps) {
   return (
-    <header className="h-16 px-6 bg-surface-subtle/80 backdrop-blur border-b border-surface-border flex items-center justify-between sticky top-0 z-20">
-      {/* Left: Menu + Title + Sync status */}
-      <div className="flex items-center gap-6">
+    <header className="h-16 bg-surface-card border-b border-surface-border px-6 flex items-center justify-between sticky top-0 z-20">
+      {/* Left: Title & Sync status */}
+      <div className="flex items-center gap-4">
         <button
-          className="lg:hidden p-1 rounded hover:bg-surface-border text-faint hover:text-white transition-colors"
+          className="lg:hidden p-1 rounded hover:bg-surface-inner text-faint hover:text-ink transition-colors"
           onClick={onMenu}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" /></svg>
         </button>
 
-        <div className="hidden lg:flex items-center gap-6">
+        <div className="hidden lg:flex items-center gap-4">
           <div>
-            <h1 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-              {pageLabel}
-              <span className="text-xs font-normal text-neon-violet px-2 py-0.5 rounded-full bg-neon-purple/10 border border-neon-purple/30">Live Metrics</span>
-            </h1>
-            <p className="text-[11px] text-faint flex items-center gap-1.5 mt-0.5">
-              <span>Last sync: {syncLabel}</span>
-              <button className="hover:text-neon-violet" title="Resync Data" onClick={() => {}}>
-                <RefreshCw className="w-3 h-3 inline" />
-              </button>
+            <h1 className="text-xl font-bold text-ink">{pageLabel}</h1>
+            <p className="text-xs text-mut flex items-center gap-1 mt-0.5">
+              Last sync: {syncLabel} <button className="text-purple-500 hover:underline">Async</button>
             </p>
           </div>
         </div>
       </div>
 
-      {/* Center: Search */}
-      <div className="hidden md:flex items-center flex-1 max-w-md mx-6">
-        <div className="relative w-full">
-          <Search className="w-4 h-4 text-faint absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            className="w-full bg-surface-card border border-surface-border rounded-full pl-9 pr-4 py-1.5 text-xs text-white placeholder-faint focus:outline-none focus:border-neon-purple focus:ring-1 focus:ring-neon-purple transition-all"
-            placeholder="Search entries, symbols, tags (#risk, #nvda)..."
-            type="text"
-          />
-        </div>
-      </div>
+      {/* Right: Action Buttons */}
+      <div className="flex items-center gap-3">
+        {/* Search */}
+        <button className="lg:flex hidden items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-inner border border-surface-border text-xs text-faint hover:border-surface-border-highlight hover:text-ink transition-colors">
+          <Search className="w-3.5 h-3.5" />
+          <span>Search</span>
+        </button>
 
-      {/* Right: Action Filters & Buttons */}
-      <div className="flex items-center gap-2.5">
-        {/* Filter Button */}
-        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-card border border-surface-border text-xs text-faint hover:border-gray-500 transition-colors">
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-          <span>Filters</span>
+        {/* Filters Button */}
+        <button className="bg-surface-card border border-surface-border px-4 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 hover:bg-surface-hover transition-colors">
+          <span className="w-4 h-4" style={{ background: "currentColor", mask: "url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 5H3M12 19H3M14 3v4M16 17v4M21 12h-9M21 19h-5M21 5h-7M8 10v4M8 12H3\"/></svg>') center/contain no-repeat" }} />
+          Filters
         </button>
 
         {/* Date Range Selector */}
-        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-card border border-surface-border text-xs text-faint hover:border-gray-500 transition-colors">
-          <CalendarDays className="w-3.5 h-3.5 text-neon-violet" />
-          <span>This month</span>
-          <ChevronDown className="w-3 h-3 text-faint" />
+        <button className="bg-surface-card border border-surface-border px-4 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 hover:bg-surface-hover transition-colors">
+          <CalendarDays className="w-4 h-4 text-purple-500" />
+          <span>Dates</span>
+          <ChevronDown className="w-3 h-3 text-mut" />
         </button>
 
         {/* Account Selector */}
-        <SelectBox
+        <select
           value={account}
-          onChange={onAccountChange}
-          options={accounts}
-        />
+          onChange={(e) => onAccountChange(e.target.value)}
+          className="bg-surface-card border border-surface-border px-4 py-1.5 rounded-md text-sm font-medium cursor-pointer appearance-none hover:bg-surface-hover transition-colors"
+        >
+          {accounts.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
 
-        {/* Neon Violet Glowing Action Buttons */}
-        <button className="hidden lg:flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-neon-purple/20 text-neon-violet border border-neon-purple/40 hover:bg-neon-purple/30 text-xs font-medium shadow-[var(--shadow-neon-subtle)] transition-all">
+        {/* Ask Zella AI */}
+        <button className="hidden lg:flex items-center gap-2 px-4 py-1.5 rounded-md bg-purple-50 text-purple-600 border border-purple-200 text-sm font-medium hover:bg-purple-100 transition-colors">
           <Sparkles className="w-3.5 h-3.5" />
-          <span>Ask AI</span>
+          Ask Zella AI
         </button>
-        <button className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 hover:bg-indigo-600/40 text-xs font-medium transition-all">
-          <Sun className="w-3.5 h-3.5" />
-          <span>Start Day</span>
+
+        <div className="h-6 w-px bg-surface-border mx-1 hidden lg:block" />
+
+        {/* Start my day */}
+        <button className="bg-indigo-600 text-white px-4 py-1.5 rounded-md text-sm font-semibold hover:bg-indigo-700 transition-colors">
+          Start my day
         </button>
-        <button className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-surface-card border border-surface-border text-xs text-faint hover:text-white transition-colors">
+
+        {/* Import trades */}
+        <button className="bg-purple-600 text-white px-4 py-1.5 rounded-md text-sm font-semibold hover:bg-purple-700 transition-colors flex items-center gap-2">
           <Download className="w-3.5 h-3.5" />
-          <span>Import</span>
+          Import trades
         </button>
-        <button className="text-faint hover:text-white p-1.5 rounded-lg border border-surface-border hover:bg-surface-card hover:border-gray-500 transition-colors">
-          <Settings className="w-4 h-4" />
+
+        {/* Theme toggle */}
+        <button
+          onClick={onToggleDark}
+          className="text-faint p-1.5 rounded-full hover:bg-surface-inner border border-surface-border transition-colors"
+          aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {dark ? <Sun className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+        </button>
+
+        {/* Settings */}
+        <button className="text-faint p-1.5 rounded-full hover:bg-surface-inner border border-surface-border hover:text-ink transition-colors">
+          <Settings className="w-5 h-5" />
         </button>
       </div>
     </header>
-  );
-}
-
-function SelectBox({
-  value,
-  onChange,
-  options,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <div className="relative">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full cursor-pointer appearance-none rounded-lg bg-surface-card border border-surface-border py-1.5 pl-3 pr-7 text-xs font-medium text-white outline-none transition-colors hover:border-gray-500 focus:border-neon-purple"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-faint w-3 h-3" />
-    </div>
   );
 }

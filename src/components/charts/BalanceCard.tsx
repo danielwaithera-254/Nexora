@@ -1,6 +1,5 @@
 import { Card, CardHead } from "../ui";
 import { fmtMoney } from "../../lib/format";
-import { Wallet } from "lucide-react";
 
 export default function BalanceCard({ 
   trades = [],
@@ -11,7 +10,6 @@ export default function BalanceCard({
   balance: number;
   startBalance: number;
 }) {
-  // Generate cumulative balance series
   const sorted = [...trades].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   let cum = startBalance;
   const series = sorted.map((t) => {
@@ -20,65 +18,32 @@ export default function BalanceCard({
   });
   series.unshift({ date: sorted[0]?.date || new Date().toISOString().slice(0, 10), balance: startBalance });
 
-  const maxBal = Math.max(...series.map((s) => s.balance));
-  const minBal = Math.min(...series.map((s) => s.balance));
-  const span = Math.max(maxBal - minBal, 1);
-
-  const points = series.map((s, i) => {
-    const x = (i / Math.max(1, series.length - 1)) * 300;
-    const y = 120 - ((s.balance - minBal) / span) * 100;
-    return `${x},${y}`;
-  }).join(" ");
-
-  const depositsPoints = series.map((s, i) => {
-    const x = (i / Math.max(1, series.length - 1)) * 300;
-    const y = 120 - ((s.balance - minBal - 5000) / span) * 100;
-    return `${x},${y}`;
-  }).join(" ");
-
   return (
-    <Card className="p-5" glow>
-      <CardHead
-        title="Account Balance Growth"
-        info={`+${fmtMoney(balance - startBalance)} Net Growth`}
-        right={
-          <span className="text-xs font-bold text-white">{fmtMoney(balance)}</span>
-        }
-        icon={<Wallet className="w-4 h-4 text-neon-purple" />}
-      />
-
-      <div className="flex gap-4 text-[10px] font-mono mb-3">
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-neon-success shadow-[0_0_5px_rgba(16,185,129,0.5)]" />
-          <span className="text-faint">Portfolio Equity</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-neon-pink shadow-[0_0_5px_rgba(236,72,153,0.5)]" />
-          <span className="text-faint">Deposits / Withdrawals</span>
-        </div>
+    <Card className="p-6 card-shadow">
+      <div className="flex items-center gap-2 mb-6">
+        <h3 className="font-bold text-ink">Account Balance</h3>
       </div>
-
-      <div className="h-36 relative">
-        <svg className="w-full h-full" viewBox="0 0 300 120">
-          {/* Gridlines */}
-          <line stroke="var(--surface-border)" strokeDasharray="2,2" x1="0" x2="300" y1="20" y2="20" />
-          <line stroke="var(--surface-border)" strokeDasharray="2,2" x1="0" x2="300" y1="60" y2="60" />
-          <line stroke="var(--surface-border)" strokeDasharray="2,2" x1="0" x2="300" y1="100" y2="100" />
-
-          {/* Deposits / Withdrawals Curve */}
-          <path d="M 0 95 Q 80 92, 120 90 T 200 85 T 300 75" fill="none" stroke="#F472B6" strokeDasharray="3,3" strokeWidth="1.8" />
-          
-          {/* Balance Curve */}
-          <path d="M 0 90 Q 60 85, 90 70 T 160 55 T 220 30 T 300 15" fill="none" stroke="#C084FC" strokeWidth="2.5" />
-          <circle cx="300" cy="15" fill="#A855F7" r="4" stroke="#0D0E12" strokeWidth="1.5" />
+      <div className="flex gap-4 text-[10px] mb-4">
+        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500" /> <span className="text-mut">Account Balance</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-400" /> <span className="text-mut">Deposits / Withdrawals</span></div>
+      </div>
+      <div className="h-40 relative">
+        <svg className="w-full h-full" viewBox="0 0 300 150">
+          <line stroke="var(--surface-border)" strokeWidth="1" x1="0" x2="300" y1="20" y2="20" />
+          <line stroke="var(--surface-border)" strokeWidth="1" x1="0" x2="300" y1="50" y2="50" />
+          <line stroke="var(--surface-border)" strokeWidth="1" x1="0" x2="300" y1="80" y2="80" />
+          <line stroke="var(--surface-border)" strokeWidth="1" x1="0" x2="300" y1="110" y2="110" />
+          <line stroke="var(--surface-border)" strokeWidth="1" x1="0" x2="300" y1="140" y2="140" />
+          <path d="M 0,130 Q 75,120 150,110 T 300,80" fill="none" stroke="#3b82f6" strokeWidth="2" />
+          <path d="M 0,150 Q 75,150 150,140 T 300,120" fill="none" stroke="#f87171" strokeWidth="2" />
         </svg>
-
-        <div className="absolute left-1 top-0 h-full flex flex-col justify-between text-[9px] font-mono text-faint/70 pointer-events-none">
-          <span>{fmtMoney(maxBal)}</span>
-          <span></span>
-          <span></span>
-          <span></span>
-          <span>{fmtMoney(minBal)}</span>
+        <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-[9px] text-mut">
+          <span>${fmtMoney(5000)}</span>
+          <span>${fmtMoney(4000)}</span>
+          <span>${fmtMoney(3000)}</span>
+          <span>${fmtMoney(2000)}</span>
+          <span>${fmtMoney(1000)}</span>
+          <span>${fmtMoney(0)}</span>
         </div>
       </div>
     </Card>

@@ -1,7 +1,7 @@
 ﻿import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import {
   LayoutDashboard,
-  BookOpen,
+  CalendarDays,
   LineChart,
   NotebookPen,
   BarChart3,
@@ -9,22 +9,16 @@ import {
   Sparkles,
   RotateCw,
   GraduationCap,
-  RadioTower,
-  CalendarDays,
-  Wallet,
-  ShieldAlert,
+  Bell,
+  ChevronRight,
+  ChevronDown,
   Settings,
   Plus,
-  Moon,
   Sun,
   Download,
-  Upload,
   Search,
-  Sparkle,
   RefreshCw,
   SlidersHorizontal,
-  ChevronDown,
-  X,
 } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
@@ -49,9 +43,8 @@ import AnalyzeLosses from "./components/AnalyzeLosses";
 import Accounts from "./components/Accounts";
 import Risk from "./components/Risk";
 import Settings from "./components/Settings";
-import { Card, CardHead } from "./components/ui";
 import { accountTagSet, generateOpenPositions, SEED_ACCOUNTS } from "./lib/risk";
-import { fmtMoney, fmtPct } from "./lib/format";
+import { fmtMoney } from "./lib/format";
 import { cn } from "./utils/cn";
 import { vaultGet, vaultSet } from "./lib/vault";
 
@@ -119,208 +112,6 @@ const isoDaysAgo = (n: number) => {
   d.setUTCDate(d.getUTCDate() - n);
   return d.toISOString().slice(0, 10);
 };
-
-function CommandCenter({
-  trades,
-  bal,
-  onNavigate,
-  onSelect,
-  onAnalyze,
-}: {
-  trades: Trade[];
-  bal: { date: string; balance: number }[];
-  onNavigate: (id: PageId) => void;
-  onSelect: (t: Trade) => void;
-  onAnalyze: () => void;
-}) {
-  const [period, setPeriod] = useState<PeriodKey>("today");
-
-  const periodTrades = useMemo(() => {
-    if (period === "today") return trades.filter((t) => t.date === isoToday());
-    if (period === "week") return trades.filter((t) => t.date >= isoDaysAgo(6));
-    if (period === "month") return trades.filter((t) => t.date >= isoDaysAgo(29));
-    return trades;
-  }, [trades, period]);
-
-  const scoped = periodTrades;
-  const tPnl = scoped.reduce((s, t) => s + t.pnl, 0);
-  const tWins = scoped.filter((t) => t.pnl > 0).length;
-  const tCount = scoped.length;
-  const winRate = tCount ? (tWins / tCount) * 100 : 0;
-  const best = scoped.reduce<{ pnl: number; symbol: string } | null>(
-    (b, t) => (b === null || t.pnl > b.pnl ? { pnl: t.pnl, symbol: t.symbol } : b),
-    null
-  );
-
-  const bySymbol = useMemo(() => {
-    const m = new Map<string, { pnl: number; count: number }>();
-    for (const t of scoped) {
-      const e = m.get(t.symbol) ?? { pnl: 0, count: 0 };
-      e.pnl += t.pnl;
-      e.count++;
-      m.set(t.symbol, e);
-    }
-    return [...m.entries()].map(([symbol, e]) => ({ symbol, ...e })).sort((a, b) => b.pnl - a.pnl);
-  }, [periodTrades]);
-
-  const positions = useMemo(() => generateOpenPositions(trades), [trades]);
-
-  const settings = vaultGet<{ name?: string }>("settings", {});
-  const name = settings.name?.trim() || "Daniel";
-  const hour = new Date().getHours();
-  const greet = hour < 5 ? "Up late" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const dateLabel = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-
-  const maxPnl = Math.max(1, ...bySymbol.map((s) => Math.abs(s.pnl)));
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-2xl bg-surface-card border border-surface-border p-5 sm:p-6">
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <h1 className="font-bold text-[22px] tracking-tight text-white sm:text-[26px]">
-              {greet}, <span className="text-neon-violet">{name}</span>
-            </h1>
-            <p className="mt-1 text-[11px] font-semibold text-faint">{dateLabel}</p>
-          </div>
-          {best && best.pnl > 0 && (
-            <span className="hidden items-center gap-1.5 rounded-xl bg-neon-success/10 border border-neon-success/30 px-3 py-2 text-[10.5px] font-extrabold text-neon-success sm:flex">
-              <Sparkles size={12} /> Best {PERIOD_LABEL[period].toLowerCase()}: {best.symbol} +${best.pnl.toLocaleString()}
-            </span>
-          )}
-          <div className="ml-auto sm:ml-0">
-            <Seg options={[...PERIODS]} value={period} onChange={setPeriod} />
-          </div>
-        </div>
-
-        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <TodayStat
-            label={`${PERIOD_LABEL[period]} P&L`}
-            value={fmtMoney(tPnl, { sign: true })}
-            trend={tPnl >= 0 ? "+14.2% vs prev" : "-8.3% vs prev"}
-            positive={tPnl >= 0}
-            sparklineData={sparkDaily(trades.filter((t) => t.date === isoToday()))}
-            sparkColor={tPnl >= 0 ? "#10B981" : "#E11D48"}
-          />
-          <TodayStat
-            label="Win Rate"
-            value={`${winRate.toFixed(1)}%`}
-            trend={`${tWins}W / ${tCount - tWins}L (${tCount} total)`}
-            positive={winRate >= 40}
-            sparklineData={sparkDaily(trades.filter((t) => t.pnl > 0))}
-            sparkColor="#C084FC"
-          />
-          <TodayStat
-            label="Profit Factor"
-            value={tPnl >= 0 ? (tPnl / Math.abs(scoped.filter((t) => t.pnl < 0).reduce((s, t) => s + t.pnl, 0)) || 1).toFixed(2) : "0.00"}
-            trend={tPnl >= 0 ? "Healthy ratio" : "Needs improvement"}
-            positive={tPnl >= 0}
-            sparklineData={sparkDaily(trades.filter((t) => t.pnl < 0))}
-            sparkColor="#E879F9"
-          />
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {bySymbol.slice(0, 3).map((s) => (
-            <SymbolRow key={s.symbol} symbol={s.symbol} pnl={s.pnl} count={s.count} max={maxPnl} />
-          ))}
-        </div>
-
-        {positions.length && (
-          <div className="mt-4 rounded-xl bg-surface-card-hover p-4 border border-surface-border/50">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-faint mb-3">Open Positions</p>
-            <div className="flex gap-3 overflow-x-auto pb-2">
-              {positions.slice(0, 4).map((p, i) => (
-                <div key={i} className="flex-shrink-0 w-36 rounded-xl bg-surface-card border border-surface-border p-3">
-                  <p className="font-bold text-white">{p.symbol}</p>
-                  <p className={cn("tnum mt-1 font-bold", p.pnl >= 0 ? "text-neon-success" : "text-neon-danger")}>
-                    {p.pnl >= 0 ? "+" : ""}{fmtMoney(p.pnl)}
-                  </p>
-                  <p className="text-[10px] text-faint mt-1">{p.side} · {p.r.toFixed(1)}R</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="mt-4 rounded-xl bg-surface-card border border-surface-border p-4">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-faint mb-3">Quick Actions</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <button onClick={() => onNavigate("trades")} className="col-span-2 py-2.5 px-4 rounded-xl bg-surface-card border border-surface-border text-white font-medium text-sm hover:border-neon-violet/50 hover:bg-surface-card-hover transition-all flex items-center justify-center gap-2">
-              <Plus size={16} /> Add Trade
-            </button>
-            <button onClick={() => onNavigate("journal")} className="py-2 px-3 rounded-xl bg-surface-card border border-surface-border text-white font-medium text-sm hover:border-neon-violet/50 hover:bg-surface-card-hover transition-all flex items-center justify-center gap-2">
-              <span className="w-4 h-4" style={{ background: "linear-gradient(135deg, #A855F7, #EC4899)", borderRadius: "50%" }} /> Journal
-            </button>
-            <button onClick={() => onNavigate("reports")} className="py-2 px-3 rounded-xl bg-surface-card border border-surface-border text-white font-medium text-sm hover:border-neon-violet/50 hover:bg-surface-card-hover transition-all flex items-center justify-center gap-2">
-              <BarChart3 size={16} /> Reports
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TodayStat({
-  label,
-  value,
-  trend,
-  positive,
-  sparklineData,
-  sparkColor,
-}: {
-  label: string;
-  value: string;
-  trend: string;
-  positive: boolean;
-  sparklineData?: number[];
-  sparkColor: string;
-}) {
-  return (
-    <div className="rounded-xl bg-surface-card border border-surface-border p-4">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-[11px] font-mono tracking-widest text-faint uppercase font-medium">{label}</span>
-        <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold", positive ? "bg-neon-success/20 text-neon-success border-neon-success/30" : "bg-neon-danger/20 text-neon-danger border-neon-danger/30")}>
-          {trend}
-        </span>
-      </div>
-      <div className="text-2xl font-mono font-bold text-white tracking-tight">{value}</div>
-      <div className="mt-3 h-1.5 w-full bg-surface-border rounded-full overflow-hidden border border-surface-border/60">
-        <div className="bg-gradient-to-r from-neon-purple to-neon-pink h-full rounded-full shadow-[0_0_8px_rgba(192,132,252,0.5)]" style={{ width: "72%" }} />
-      </div>
-      <div className="flex justify-between items-center mt-1.5 text-[9px] font-mono text-faint/70">
-        <span>Target: $15K</span>
-        <span>81% to goal</span>
-      </div>
-    </div>
-  );
-}
-
-function SymbolRow({ symbol, pnl, count, max }: { symbol: string; pnl: number; count: number; max: number }) {
-  return (
-    <div className="rounded-xl bg-surface-card border border-surface-border p-4">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-[11px] font-mono tracking-widest text-faint uppercase font-medium">{symbol}</span>
-        <span className={cn("text-[11px] font-mono tracking-widest font-medium", pnl >= 0 ? "text-neon-success" : "text-neon-danger")}>
-          {pnl >= 0 ? "+" : ""}{pnl.toLocaleString()}
-        </span>
-      </div>
-      <div className="h-2 bg-surface-border rounded-full flex overflow-hidden border border-surface-border/60">
-        <div className="bg-gradient-to-r from-neon-purple to-neon-pink h-full shadow-[0_0_6px_rgba(192,132,252,0.5)]" style={{ width: `${Math.min(100, (Math.abs(pnl) / Math.max(1, 1000)) * 100)}%` }} />
-      </div>
-      <div className="flex justify-between text-[9px] font-mono text-faint mt-1.5">
-        <span>{count} trades</span>
-        <span>PR: 50%</span>
-      </div>
-    </div>
-  );
-}
 
 function JournalApp() {
   const [dark, setDark] = useState(() => localStorage.getItem("nexora-dark") === "1");
@@ -565,7 +356,7 @@ function JournalApp() {
     a.download = "nexora-sample.csv";
     a.click();
     URL.revokeObjectURL(url);
-    showToast("Sample CSV downloaded — re-import it via “Import” to see it merge", "brand");
+    showToast('Sample CSV downloaded — re-import it via "Import" to see it merge', "brand");
   };
 
   const handleNavigate = (id: PageId) => {
@@ -577,14 +368,6 @@ function JournalApp() {
       case "dashboard":
         return (
           <div className="space-y-6">
-            <CommandCenter
-              trades={trades}
-              bal={bal}
-              onNavigate={handleNavigate}
-              onSelect={setDetail}
-              onAnalyze={() => setAnalyzeOpen(true)}
-            />
-
             {/* KPI Metrics Row */}
             <KpiCards trades={scopedTrades} period={filters.range === "today" ? "today" : filters.range === "week" ? "week" : filters.range === "month" ? "month" : "all"} />
 
@@ -599,7 +382,7 @@ function JournalApp() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               <div className="lg:col-span-5 space-y-6">
                 <BalanceCard trades={scopedTrades} balance={25000} startBalance={25000} />
-                <TradesTable trades={scopedTrades} onSelect={setDetail} />
+                <TradesTable trades={scopedTrades} />
               </div>
               <div className="lg:col-span-7">
                 <Calendar trades={scopedTrades} />
@@ -610,7 +393,7 @@ function JournalApp() {
       case "journal":
         return <DailyJournal trades={trades} />;
       case "trades":
-        return <TradesTable trades={scopedTrades} onSelect={setDetail} />;
+        return <TradesTable trades={scopedTrades} />;
       case "mt5":
         return <Mt5Bridge onReplaceTrades={importTrades} onNavigate={() => handleNavigate("trades")} />;
       case "notebook":
@@ -686,6 +469,7 @@ function JournalApp() {
     </div>
   );
 }
+
 const App = () => <JournalApp />;
 
 export default App;
