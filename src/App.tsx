@@ -39,6 +39,7 @@ import { Reveal, Seg, Card, CardHead, Sparkline, PnlText, ChartTip } from "./com
 import { accountTagSet, generateOpenPositions, SEED_ACCOUNTS } from "./lib/risk";
 import { fmtMoney, fmtPct } from "./lib/format";
 import { cn } from "./utils/cn";
+import { vaultGet, vaultSet } from "./lib/vault";
 
 import {
   generateTrades,
