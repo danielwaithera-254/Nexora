@@ -70,7 +70,12 @@
   --color-ink: var(--ink);
   --color-mut: var(--mut);
   --color-faint: var(--faint);
+  --color-slate-200: #e2e8f0;
+  --color-purple-600: #9333ea;
+  --color-white: #ffffff;
+  --color-black: #000000;
   --font-sans: var(--font-sans);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 html {
