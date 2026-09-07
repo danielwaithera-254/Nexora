@@ -3,32 +3,35 @@ import {
   LayoutDashboard,
   CalendarDays,
   LineChart,
-  NotebookPen,
-  BarChart3,
-  Layers,
-  Sparkles,
-  RotateCw,
-  GraduationCap,
-  Bell,
-  ChevronRight,
-  ChevronDown,
+  FilePen,
+  RadioTower,
+  FileText,
+  BookOpen,
+  Target,
+  RotateCcw,
   Settings,
+  ChevronRight,
+  Bell,
+  ChevronDown,
   Plus,
   Sun,
   Download,
   Search,
-  RefreshCw,
-  SlidersHorizontal,
+  Upload,
+  ChevronLeft,
 } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
+import FilterBar from "./components/FilterBar";
 import KpiCards from "./components/KpiCards";
 import RadarCard from "./components/charts/RadarCard";
 import CumPnLCard from "./components/charts/CumPnLCard";
 import HeatmapCard from "./components/charts/HeatmapCard";
 import BalanceCard from "./components/charts/BalanceCard";
 import Calendar from "./components/Calendar";
-import TradesTable from "./components/TradesTable";
+import OutcomeSplit from "./components/OutcomeSplit";
+import PnlWeekday from "./components/PnlWeekday";
+import TradeLogTable from "./components/TradeLogTable";
 import InsightsDrawer from "./components/InsightsDrawer";
 import DailyJournal from "./components/DailyJournal";
 import Notebook from "./components/Notebook";
@@ -43,6 +46,7 @@ import AnalyzeLosses from "./components/AnalyzeLosses";
 import Accounts from "./components/Accounts";
 import Risk from "./components/Risk";
 import Settings from "./components/Settings";
+import FloatingBadge from "./components/FloatingBadge";
 import { accountTagSet, generateOpenPositions, SEED_ACCOUNTS } from "./lib/risk";
 import { fmtMoney } from "./lib/format";
 import { cn } from "./utils/cn";
@@ -321,7 +325,7 @@ function JournalApp() {
       profitFactor: rs.axes.find((a) => a.axis === "Profit Factor")?.value ?? 0,
       risk: rs.axes.find((a) => a.axis === "Risk Control")?.value ?? 0,
       discipline: rs.axes.find((a) => a.axis === "Discipline")?.value ?? 0,
-      resilience: rs.axes.find((a) => a.axis === "Consistency")?.value ?? 0,
+      consistency: rs.axes.find((a) => a.axis === "Consistency")?.value ?? 0,
       winRate: rs.axes.find((a) => a.axis === "Win Rate")?.value ?? 0,
     };
   }, [k]);
@@ -368,32 +372,41 @@ function JournalApp() {
       case "dashboard":
         return (
           <div className="space-y-6">
-            {/* KPI Metrics Row */}
+            <FilterBar
+              tradesCount={scopedTrades.length}
+              onSearch={() => {}}
+              onSample={handleSample}
+              onImport={() => handleNavigate("mt5")}
+              onExport={handleExport}
+            />
+
             <KpiCards trades={scopedTrades} period={filters.range === "today" ? "today" : filters.range === "week" ? "week" : filters.range === "month" ? "month" : "all"} />
 
-            {/* Middle Analytics Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              <RadarCard elo={81} scores={scores} />
+            <section className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full lg:grid-cols-6" data-purpose="charts-middle-grid">
+              <RadarCard elo={57} scores={scores} />
               <CumPnLCard trades={scopedTrades} />
               <HeatmapCard />
-            </div>
+            </section>
 
-            {/* Bottom Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              <div className="lg:col-span-5 space-y-6">
+            <section className="grid grid-cols-1 gap-6">
+              <div className="grid grid-cols-1 gap-6">
                 <BalanceCard trades={scopedTrades} balance={25000} startBalance={25000} />
-                <TradesTable trades={scopedTrades} />
               </div>
-              <div className="lg:col-span-7">
-                <Calendar trades={scopedTrades} />
-              </div>
-            </div>
+              <Calendar trades={scopedTrades} />
+            </section>
+
+            <section className="grid grid-cols-1 gap-6 lg:grid-cols-2 w-full">
+              <OutcomeSplit />
+              <PnlWeekday />
+            </section>
+
+            <TradeLogTable />
           </div>
         );
       case "journal":
         return <DailyJournal trades={trades} />;
       case "trades":
-        return <TradesTable trades={scopedTrades} />;
+        return <TradeLogTable />;
       case "mt5":
         return <Mt5Bridge onReplaceTrades={importTrades} onNavigate={() => handleNavigate("trades")} />;
       case "notebook":
@@ -436,7 +449,7 @@ function JournalApp() {
         onClose={() => setSidebarOpen(false)}
         onNavigate={handleNavigate}
         active={page}
-        name={settings.name?.trim() || "Daniel"}
+        name={settings.name?.trim() || "Jordan Tate"}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -452,12 +465,12 @@ function JournalApp() {
           onAccountChange={changeAccount}
         />
 
-        <main className="flex-1 p-6 space-y-6 overflow-y-auto">{renderPage()}</main>
+        <main className="flex-1 px-4 md:px-8 py-6 space-y-6 overflow-y-auto">{renderPage()}</main>
       </div>
 
       {toast && (
-        <div className={cn("fixed bottom-4 right-4 z-50 toast-in", toast.tone === "gain" ? "bg-neon-success" : toast.tone === "loss" ? "bg-neon-danger" : "bg-neon-purple")}>
-          <div className="px-4 py-3 rounded-xl shadow-[var(--shadow-neon-card)] text-white font-medium flex items-center gap-2">
+        <div className={cn("fixed bottom-4 right-4 z-50 toast-in", toast.tone === "gain" ? "bg-emerald-500" : toast.tone === "loss" ? "bg-rose-500" : "bg-purple-500")}>
+          <div className="px-4 py-3 rounded-xl shadow-[var(--shadow-card)] text-white font-medium flex items-center gap-2">
             {toast.msg}
           </div>
         </div>
@@ -466,6 +479,7 @@ function JournalApp() {
       {detail && <TradeDetail trade={detail} onClose={() => setDetail(null)} />}
       {analyzeOpen && <AnalyzeLosses trades={trades} open={analyzeOpen} onClose={() => setAnalyzeOpen(false)} />}
       {insightsOpen && <InsightsDrawer open={insightsOpen} onClose={() => setInsightsOpen(false)} items={ins} />}
+      <FloatingBadge />
     </div>
   );
 }

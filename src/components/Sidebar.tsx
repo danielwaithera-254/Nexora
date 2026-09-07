@@ -2,14 +2,18 @@ import {
   LayoutDashboard,
   CalendarDays,
   LineChart,
-  NotebookPen,
-  BarChart3,
-  Layers,
-  Sparkles,
-  RotateCw,
-  GraduationCap,
-  Bell,
+  FileText,
+  RadioTower,
+  FilePen,
+  BookOpen,
+  Target,
+  RotateCcw,
+  Settings,
   ChevronRight,
+  Bell,
+  User,
+  ChevronDown,
+  Plus,
 } from "lucide-react";
 import { cn } from "../utils/cn";
 
@@ -17,23 +21,26 @@ export type PageId =
   | "dashboard"
   | "journal"
   | "trades"
+  | "mt5"
   | "notebook"
-  | "reports"
   | "playbooks"
   | "progress"
   | "replay"
-  | "resources";
+  | "resources"
+  | "calendar"
+  | "accounts"
+  | "risk"
+  | "settings";
 
-const NAV: { id: PageId; name: string; icon: React.ComponentType<{ size?: number; className?: string }>; badge?: string }[] = [
+const NAV: { id: PageId; name: string; icon: React.ComponentType<{ size?: number; className?: string }>; badge?: string; badgeVariant?: "live" | "new" | "beta" }[] = [
   { id: "dashboard", name: "Dashboard", icon: LayoutDashboard },
   { id: "journal", name: "Daily Journal", icon: CalendarDays },
   { id: "trades", name: "Trades", icon: LineChart },
-  { id: "notebook", name: "Notebook", icon: NotebookPen },
-  { id: "reports", name: "Reports", icon: BarChart3, badge: "NEW" },
-  { id: "playbooks", name: "Playbooks", icon: Layers, badge: "NEW" },
-  { id: "progress", name: "Progress Tracker", icon: Sparkles },
-  { id: "replay", name: "Trade Replay", icon: RotateCw, badge: "NEW" },
-  { id: "resources", name: "Resource Center", icon: GraduationCap },
+  { id: "mt5", name: "MT5 Gateway", icon: RadioTower, badge: "LIVE", badgeVariant: "live" },
+  { id: "notebook", name: "Notebook", icon: FilePen, badge: "NEW", badgeVariant: "new" },
+  { id: "playbooks", name: "Playbooks", icon: BookOpen },
+  { id: "progress", name: "Progress Tracker", icon: Target },
+  { id: "replay", name: "Trade Replay", icon: RotateCcw, badge: "BETA", badgeVariant: "beta" },
 ];
 
 const initials = (name: string) =>
@@ -69,75 +76,84 @@ export default function Sidebar({
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col sidebar-bg text-white transition-transform duration-300 custom-scrollbar",
+          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col sidebar-bg text-white transition-transform duration-300",
           open ? "translate-x-0" : "-translate-x-full",
-          "lg:sticky lg:top-0 lg:h-full lg:translate-x-0"
+          "lg:sticky lg:top-0 lg:h-full lg:translate-x-0 lg:shadow-xl"
         )}
       >
         {/* Brand Section */}
-        <div className="p-6 flex items-center gap-2 border-b border-purple-900/50">
-          <div className="w-8 h-8 bg-purple-500 rounded flex items-center justify-center">
-            <span className="font-bold italic text-lg">Z</span>
-          </div>
-          <span className="text-xl font-bold tracking-tight">TRADEZELLA</span>
-          <button
-            className="ml-auto text-gray-400 hover:text-white lg:hidden"
-            onClick={onClose}
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Add Trade CTA */}
-        <div className="px-4 mb-6">
-          <button
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
-            onClick={() => { onNavigate("trades"); onClose(); }}
-          >
-            <span className="w-4 h-4" style={{ background: "currentColor", mask: "url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 4v16M8 12h8\"/></svg>') center/contain no-repeat" }} />
-            Add trade
-          </button>
-        </div>
-
-        {/* Navigation Menu */}
-        <nav className="flex-1 px-3 space-y-1 text-sm text-gray-300" aria-label="Main Navigation">
-          {NAV.map((item) => {
-            const isActive = active === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => { onNavigate(item.id); onClose(); }}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-md transition-all",
-                  isActive
-                    ? "bg-gray-800 text-white"
-                    : "hover:bg-gray-800 hover:text-white"
-                )}
-              >
-                <item.icon className={cn("w-5 h-5", isActive ? "text-white" : "text-gray-300")} />
-                <span>{item.name}</span>
-                {item.badge && (
-                  <span className="ml-auto bg-blue-500 text-[10px] px-1.5 py-0.5 rounded text-white font-bold">
-                    {item.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Sidebar Footer: User Profile */}
-        <div className="mt-auto p-4 flex flex-col gap-4 border-t border-purple-900/50">
-          <button className="flex items-center gap-3 text-gray-400 hover:text-white text-sm">
-            <Bell className="w-5 h-5" />
-            Notifications
-          </button>
-          <div className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-800 cursor-pointer">
-            <div className="w-8 h-8 rounded-full border border-gray-600 bg-gray-700 flex items-center justify-center">
-              <span className="text-xs font-bold text-white">{initials(name)}</span>
+        <div className="space-y-6 p-4">
+          <div className="flex items-center space-x-3 px-2 pt-2">
+            <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-md">
+              <svg className="w-6 h-6 text-[#5c1c9c]" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" viewBox="0 0 24 24">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
             </div>
-            <span className="text-sm font-medium">{name}</span>
+            <div>
+              <h1 className="text-xl font-bold tracking-tight leading-none text-white">Nexora</h1>
+              <p className="text-[10px] uppercase font-bold tracking-widest text-purple-200/70 mt-1">Trading Journal</p>
+            </div>
           </div>
+
+          {/* Add Trade Primary CTA */}
+          <button
+            onClick={() => { onNavigate("trades"); onClose(); }}
+            className="w-full py-3 px-4 bg-white text-[#52178d] font-bold rounded-full shadow-lg hover:bg-purple-50 transition-colors flex items-center justify-center space-x-2 group"
+          >
+            <Plus className="w-5 h-5 text-[#52178d] transition-transform group-hover:scale-110" />
+            <span className="text-sm">Add trade</span>
+          </button>
+
+          {/* Navigation Menu */}
+          <nav className="space-y-1" aria-label="Main Navigation">
+            <p className="text-[11px] font-semibold tracking-wider uppercase text-purple-300/80 px-3 pb-2">Workspace</p>
+            {NAV.map((item) => {
+              const isActive = active === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => { onNavigate(item.id); onClose(); }}
+                  className={cn(
+                    "flex items-center space-x-3 px-4 py-2 rounded-full text-sm font-medium transition-all",
+                    isActive
+                      ? "bg-white text-[#52178d] font-semibold shadow-sm"
+                      : "text-purple-100/85 hover:bg-white/10"
+                  )}
+                >
+                  <item.icon className={cn("w-5 h-5", isActive ? "text-[#52178d]" : "text-purple-200")} />
+                  <span>{item.name}</span>
+                  {item.badge && (
+                    <span className={cn(
+                      "ml-auto text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-md border",
+                      item.badgeVariant === "live"
+                        ? "bg-purple-900/60 border-purple-400/40 text-purple-200"
+                        : item.badgeVariant === "new"
+                        ? "bg-purple-900/60 border-purple-400/40 text-purple-200"
+                        : "bg-purple-900/60 border-purple-400/40 text-purple-200"
+                    )}>
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Bottom User Profile Card */}
+        <div className="pt-6 border-t border-purple-700/50 mt-6 flex items-center justify-between px-1">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-full bg-white text-[#49157c] font-bold text-sm flex items-center justify-center ring-2 ring-purple-300">
+              {initials(name)}
+            </div>
+            <div className="leading-tight">
+              <p className="text-sm font-bold text-white">{name}</p>
+              <p className="text-xs text-purple-200/70">Funded · 3 accounts</p>
+            </div>
+          </div>
+          <button className="text-purple-200 hover:text-white p-1 rounded-lg transition" title="User Settings">
+            <Settings className="w-5 h-5" />
+          </button>
         </div>
       </aside>
     </>
