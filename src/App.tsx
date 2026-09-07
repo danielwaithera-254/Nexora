@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Info,
   NotebookPen,
+  Plus,
   Sparkles,
   Upload,
 } from "lucide-react";
