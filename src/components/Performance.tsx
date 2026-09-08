@@ -3,7 +3,7 @@ import { Card, CardHead } from "./ui";
 import { cn } from "../utils/cn";
 import { fmtMoney, fmtPct, fmtNum } from "../lib/format";
 import type { Trade } from "../data/trades";
-import { computeKpis, balanceSeries, monthlySeries, weekdaySeries } from "../lib/metrics";
+import { computeKpis, balanceSeries, monthlySeries, weekdaySeries, dailyMap } from "../lib/metrics";
 
 interface PerformanceProps {
   trades: Trade[];
@@ -11,6 +11,7 @@ interface PerformanceProps {
 
 export default function Performance({ trades }: PerformanceProps) {
   const [period, setPeriod] = useState<"week" | "month" | "quarter" | "year" | "all">("all");
+  const [hoveredDate, setHoveredDate] = useState<string | null>(null);
 
   const filteredTrades = useMemo(() => {
     if (period === "week") {
@@ -37,6 +38,7 @@ export default function Performance({ trades }: PerformanceProps) {
   const bal = useMemo(() => balanceSeries(filteredTrades), [filteredTrades]);
   const monthly = useMemo(() => monthlySeries(filteredTrades), [filteredTrades]);
   const weekly = useMemo(() => weekdaySeries(filteredTrades), [filteredTrades]);
+  const daily = useMemo(() => dailyMap(filteredTrades), [filteredTrades]);
 
   const bestDay = useMemo(() => {
     const byDay = new Map<string, number>();
@@ -66,6 +68,21 @@ export default function Performance({ trades }: PerformanceProps) {
     return streak;
   }, [filteredTrades]);
 
+  // Build daily data for hover effects
+  const dailyData = useMemo(() => {
+    const map = new Map<string, { date: string; pnl: number; trades: number; wins: number }>();
+    filteredTrades.forEach(t => {
+      const existing = map.get(t.date) || { date: t.date, pnl: 0, trades: 0, wins: 0 };
+      existing.pnl += t.pnl;
+      existing.trades += 1;
+      if (t.pnl > 0) existing.wins += 1;
+      map.set(t.date, existing);
+    });
+    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }, [filteredTrades]);
+
+  const getHoverData = (date: string) => dailyData.find(d => d.date === date) || null;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -89,75 +106,26 @@ export default function Performance({ trades }: PerformanceProps) {
         </div>
       </div>
 
-      {/* Summary Cards */}
+      {/* Summary Cards with Hover Effects */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {[
-          { label: "Starting Balance", value: 10000, icon: "💰" },
-          { label: "Current Balance", value: 10000 + k.net, icon: "💼" },
-          { label: "Net Profit", value: k.net, pos: k.net >= 0 },
-          { label: "Return %", value: ((k.net / 10000) * 100).toFixed(1) + "%", pos: k.net >= 0 },
-          { label: "Best Day", value: bestDay.pnl >= 0 ? "+" + bestDay.pnl.toLocaleString() : bestDay.pnl.toLocaleString(), pos: bestDay.pnl >= 0 },
-          { label: "Worst Day", value: worstDay.pnl.toLocaleString(), pos: false },
-          { label: "Current Streak", value: currentStreak + " days", pos: true },
-        ].map((m, i) => (
-          <Card key={i} className="p-4">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-mut flex items-center gap-1">
-              {m.label}
-            </p>
-            <p className="mt-1 font-display text-2xl font-bold tnum" style={{ color: m.pos === false ? "var(--loss)" : m.pos === true ? "var(--gain)" : "var(--ink)" }}>
-              {typeof m.value === "number" ? (m.value >= 0 && m.label !== "Worst Day" ? "+" : "") + m.value.toLocaleString() : m.value}
-            </p>
-          </Card>
+          { label: "Starting Balance", value: 10000, key: "startBal", pos: true },
+          { label: "Current Balance", value: 10000 + k.net, key: "curBal", pos: k.net >= 0 },
+          { label: "Net Profit", value: k.net, key: "net", pos: k.net >= 0 },
+          { label: "Return %", value: ((k.net / 10000) * 100).toFixed(1) + "%", key: "ret", pos: k.net >= 0 },
+          { label: "Best Day", value: bestDay.pnl >= 0 ? "+" + bestDay.pnl.toLocaleString() : bestDay.pnl.toLocaleString(), key: "bestDay", pos: bestDay.pnl >= 0 },
+          { label: "Worst Day", value: worstDay.pnl.toLocaleString(), key: "worstDay", pos: false },
+          { label: "Current Streak", value: currentStreak + " days", key: "streak", pos: true },
+        ].map((m) => (
+          <MetricCard key={m.key} metric={m} dailyData={dailyMap(filteredTrades)} onHover={setHoveredDate} hoveredDate={hoveredDate} />
         ))}
       </div>
 
-      {/* Monthly Performance Table */}
-      <Card>
-        <CardHead title="Monthly Performance" info="P&L by month" />
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-surface border-b border-edge text-[10px] uppercase font-bold text-mut tracking-wider">
-              <tr>
-                <th className="p-3 text-left">Month</th>
-                <th className="p-3 text-right">P&L</th>
-                <th className="p-3 text-right">Trades</th>
-                <th className="p-3 text-right">Win Rate</th>
-                <th className="p-3 text-right">Profit Factor</th>
-                <th className="p-3 text-right">Avg R</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-edge">
-              {[
-                { month: "JAN", pnl: 80, trades: 24, wr: 62.5, pf: 1.45, avgR: 1.2 },
-                { month: "FEB", pnl: 120, trades: 28, wr: 58.3, pf: 1.32, avgR: 1.1 },
-                { month: "MAR", pnl: -30, trades: 19, wr: 47.4, pf: 0.85, avgR: 0.8 },
-                { month: "APR", pnl: 210, trades: 31, wr: 67.7, pf: 2.1, avgR: 1.8 },
-                { month: "MAY", pnl: 95, trades: 22, wr: 54.5, pf: 1.25, avgR: 1.0 },
-                { month: "JUN", pnl: 180, trades: 26, wr: 65.4, pf: 1.68, avgR: 1.5 },
-                { month: "JUL", pnl: 0, trades: 0, wr: 0, pf: 0, avgR: 0 },
-                { month: "AUG", pnl: 0, trades: 0, wr: 0, pf: 0, avgR: 0 },
-                { month: "SEP", pnl: 0, trades: 0, wr: 0, pf: 0, avgR: 0 },
-                { month: "OCT", pnl: 0, trades: 0, wr: 0, pf: 0, avgR: 0 },
-                { month: "NOV", pnl: 0, trades: 0, wr: 0, pf: 0, avgR: 0 },
-                { month: "DEC", pnl: 0, trades: 0, wr: 0, pf: 0, avgR: 0 },
-              ].map((m, i) => (
-                <tr key={m.month} className="hover:bg-surface transition-colors">
-                  <td className="p-3 font-medium text-mut">{m.month}</td>
-                  <td className="p-3 text-right font-bold tnum" style={{ color: m.pnl >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                    {m.pnl >= 0 ? "+" : ""}${m.pnl}
-                  </td>
-                  <td className="p-3 text-right text-mut">{m.trades}</td>
-                  <td className="p-3 text-right tnum">{m.wr > 0 ? m.wr.toFixed(1) + "%" : "—"}</td>
-                  <td className="p-3 text-right tnum">{m.pf > 0 ? m.pf.toFixed(2) : "—"}</td>
-                  <td className="p-3 text-right tnum">{m.avgR > 0 ? m.avgR.toFixed(2) + "R" : "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      {hoveredDate && (
+        <HoverTooltip date={hoveredDate} data={dailyMap(filteredTrades).find(d => d.date === hoveredDate)} dailyData={dailyMap(filteredTrades)} />
+      )}
 
-      {/* Charts */}
+      {/* Charts - Full Width Big Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="h-[400px]">
           <CardHead title="Cumulative Returns" info="Equity curve over selected period" />
@@ -188,7 +156,7 @@ export default function Performance({ trades }: PerformanceProps) {
         </Card>
       </div>
 
-      {/* Weekly P&L */}
+      {/* Weekly P&L - Full Width */}
       <Card>
         <CardHead title="Weekly P&L" info="Profit/Loss by week" />
         <div className="h-[300px] px-2">
@@ -202,6 +170,95 @@ export default function Performance({ trades }: PerformanceProps) {
           </svg>
         </div>
       </Card>
+    </div>
+  );
+}
+
+interface MetricCardProps {
+  metric: { label: string; key: string; value: number; pos: boolean };
+  dailyData: { date: string; pnl: number; trades: number; wins: number }[];
+  onHover: (date: string | null) => void;
+  hoveredDate: string | null;
+}
+
+function MetricCard({ metric, dailyData, onHover, hoveredDate }: MetricCardProps) {
+  const [isHovered, setIsHovered] = useState(false);
+  const isActive = hoveredDate !== null;
+  const pos = metric.value >= 0;
+
+  return (
+    <div 
+      className={cn(
+        "p-4 rounded-xl bg-panel border border-edge transition-all duration-200",
+        "hover:border-brand/50 hover:shadow-[0_0_20px_rgba(139,92,246,0.15)]",
+        "relative overflow-visible cursor-pointer"
+      )}
+      onMouseEnter={() => { setIsHovered(true); onHover(null); }}
+      onMouseLeave={() => { setIsHovered(false); if (!hoveredDate) onHover(null); }}
+    >
+      <p className="text-[10px] font-bold uppercase tracking-wider text-mut">{metric.label}</p>
+      <p className="mt-1 font-display text-2xl font-bold tnum" style={{ color: `var(--${pos ? "gain" : "loss"})` }}>
+        {metric.value}
+      </p>
+      
+      {isHovered && !hoveredDate && (
+        <MiniSparkline dailyData={dailyMap([])} color={pos ? "gain" : "loss"} />
+      )}
+    </div>
+  );
+}
+
+function MiniSparkline({ dailyData, color }: { dailyData: any; color: string }) {
+  return (
+    <div className="absolute bottom-0 left-0 right-0 h-12 pointer-events-none">
+      <svg viewBox="0 0 100 100" className="w-full h-full" preserveAspectRatio="none">
+        <path d="M 0 50 Q 25 30 50 40 T 100 20" fill="none" stroke={`var(--${color})`} strokeWidth="2" strokeLinecap="round" opacity="0.8" />
+      </svg>
+    </div>
+  );
+}
+
+interface HoverTooltipProps {
+  date: string;
+  data: any;
+  dailyData: any[];
+}
+
+function HoverTooltip({ date, data, dailyData }: HoverTooltipProps) {
+  if (!data) return null;
+  
+  const dayIndex = dailyData.findIndex(d => d.date === date);
+  const isLast = dayIndex === dailyData.length - 1;
+  const isFirst = dayIndex === 0;
+
+  return (
+    <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 w-80 animate-toastIn pointer-events-none">
+      <div className="bg-panel border border-brand/30 rounded-xl p-4 shadow-2xl">
+        <div className="flex items-center justify-between mb-3">
+          <span className="font-bold text-ink">{new Date(date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}</span>
+          <span className={`font-bold tnum ${data.pnl >= 0 ? "text-gain" : "text-loss"}`}>
+            {data.pnl >= 0 ? "+" : ""}{data.pnl.toLocaleString()}
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="p-2 rounded-lg bg-panel2">
+            <p className="text-[10px] text-mut">Trades</p>
+            <p className="font-bold text-ink">{data.trades}</p>
+          </div>
+          <div className="p-2 rounded-lg bg-panel2">
+            <p className="text-[10px] text-mut">Win Rate</p>
+            <p className="font-bold text-gain">{(data.wins / Math.max(1, data.trades) * 100).toFixed(1)}%</p>
+          </div>
+          <div className="p-2 rounded-lg bg-panel2">
+            <p className="text-[10px] text-mut">Avg P&L</p>
+            <p className="font-bold text-ink">{Math.round(data.pnl / Math.max(1, data.trades))}</p>
+          </div>
+        </div>
+        <div className="mt-3 flex items-center justify-between text-xs text-mut">
+          <button disabled={true} className="px-2 py-1 rounded border border-edge text-mut opacity-30">← Prev</button>
+          <button disabled={true} className="px-2 py-1 rounded border border-edge text-mut opacity-30">Next →</button>
+        </div>
+      </div>
     </div>
   );
 }
