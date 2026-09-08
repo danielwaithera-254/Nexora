@@ -2,50 +2,62 @@ import {
   LayoutDashboard,
   CalendarDays,
   CandlestickChart,
-  RadioTower,
-  NotebookPen,
-  Layers,
-  TrendingUp,
-  RotateCw,
-  GraduationCap,
   Wallet,
-  Plus,
+  BarChart3,
+  LineChart,
+  Target,
+  ListChecks,
+  Calendar,
+  Target as TargetIcon,
   Settings,
+  Plus,
+  Settings as SettingsIcon,
   X,
+  TrendingUp,
+  BookOpen,
+  Flame,
 } from "lucide-react";
 import { cn } from "../utils/cn";
 
 export type PageId =
   | "dashboard"
   | "journal"
-  | "trades"
-  | "mt5"
-  | "notebook"
   | "accounts"
-  | "playbooks"
-  | "progress"
-  | "replay"
-  | "resources";
+  | "trades"
+  | "analytics"
+  | "performance"
+  | "strategies"
+  | "calendar"
+  | "goals"
+  | "settings";
 
 interface NavItem {
   id: PageId;
   name: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
   badge?: string;
+  section: "workspace" | "analytics" | "habits" | "settings";
 }
 
 const NAV: NavItem[] = [
-  { id: "dashboard", name: "Dashboard", icon: LayoutDashboard },
-  { id: "journal", name: "Daily Journal", icon: CalendarDays },
-  { id: "trades", name: "Trades", icon: CandlestickChart },
-  { id: "mt5", name: "MT5 Gateway", icon: RadioTower, badge: "LIVE" },
-  { id: "notebook", name: "Notebook", icon: NotebookPen, badge: "NEW" },
-  { id: "accounts", name: "Accounts", icon: Wallet, badge: "NEW" },
-  { id: "playbooks", name: "Playbooks", icon: Layers },
-  { id: "progress", name: "Progress Tracker", icon: TrendingUp },
-  { id: "replay", name: "Trade Replay", icon: RotateCw, badge: "BETA" },
-  { id: "resources", name: "Resource Center", icon: GraduationCap },
+  { id: "dashboard", name: "Dashboard", icon: LayoutDashboard, section: "workspace" },
+  { id: "journal", name: "Daily Journal", icon: CalendarDays, section: "workspace" },
+  { id: "accounts", name: "Accounts", icon: Wallet, section: "workspace" },
+  { id: "trades", name: "Trades", icon: CandlestickChart, section: "analytics" },
+  { id: "analytics", name: "Analytics", icon: BarChart3, section: "analytics" },
+  { id: "performance", name: "Performance", icon: TrendingUp, section: "analytics" },
+  { id: "strategies", name: "Strategies", icon: Target, section: "analytics" },
+  { id: "calendar", name: "Calendar", icon: Calendar, section: "habits" },
+  { id: "goals", name: "Goals", icon: TargetIcon, section: "habits" },
+  { id: "settings", name: "Settings", icon: Settings, section: "settings" },
 ];
+
+const SECTION_LABELS: Record<string, string> = {
+  workspace: "Workspace",
+  analytics: "Analytics",
+  habits: "Habits",
+  settings: "Settings",
+};
 
 export default function Sidebar({
   open,
@@ -70,7 +82,6 @@ export default function Sidebar({
         onClick={onClose}
       />
 
-      {/* Single clean top-to-bottom purple ramp — no competing overlays. */}
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 flex w-[240px] flex-col text-white transition-transform duration-300",
@@ -123,47 +134,54 @@ export default function Sidebar({
 
         {/* nav */}
         <nav className="mt-6 flex-1 space-y-1 overflow-y-auto px-3 pb-4">
-          <p className="px-3 pb-2 text-[9px] font-bold uppercase tracking-[0.16em] text-white/40">
-            Workspace
-          </p>
-          {NAV.map((item) => {
-            const Icon = item.icon;
-            const isActive = active === item.id;
+          {["workspace", "analytics", "habits", "settings"].map((section) => {
+            const items = NAV.filter((n) => n.section === section);
             return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  onNavigate(item.id);
-                  onClose();
-                }}
-                className={cn(
-                  "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[12.5px] font-semibold transition-all duration-200",
-                  isActive
-                    ? "bg-white text-[#5b21b6] shadow-[0_6px_16px_-6px_rgba(0,0,0,0.45)]"
-                    : "text-white/70 hover:bg-white/[0.13] hover:text-white"
-                )}
-              >
-                <Icon
-                  size={15}
-                  className={cn(
-                    "shrink-0 transition-transform duration-200",
-                    isActive
-                      ? "text-[#7c3aed]"
-                      : "text-white/50 group-hover:translate-x-0.5 group-hover:text-white"
-                  )}
-                />
-                <span className="truncate">{item.name}</span>
-                {item.badge && (
-                  <span
-                    className={cn(
-                      "ml-auto rounded px-1.5 py-0.5 text-[8.5px] font-extrabold tracking-wider",
-                      isActive ? "bg-[#ede9fe] text-[#6d28d9]" : "bg-white/15 text-white/80"
-                    )}
-                  >
-                    {item.badge}
-                  </span>
-                )}
-              </button>
+              <div key={section} className="space-y-1">
+                <p className="px-3 pb-2 text-[9px] font-bold uppercase tracking-[0.16em] text-white/40">
+                  {SECTION_LABELS[section]}
+                </p>
+                {items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = active === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        onNavigate(item.id);
+                        onClose();
+                      }}
+                      className={cn(
+                        "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[12.5px] font-semibold transition-all duration-200",
+                        isActive
+                          ? "bg-white text-[#5b21b6] shadow-[0_6px_16px_-6px_rgba(0,0,0,0.45)]"
+                          : "text-white/70 hover:bg-white/[0.13] hover:text-white"
+                      )}
+                    >
+                      <Icon
+                        size={15}
+                        className={cn(
+                          "shrink-0 transition-transform duration-200",
+                          isActive
+                            ? "text-[#7c3aed]"
+                            : "text-white/50 group-hover:translate-x-0.5 group-hover:text-white"
+                        )}
+                      />
+                      <span className="truncate">{item.name}</span>
+                      {item.badge && (
+                        <span
+                          className={cn(
+                            "ml-auto rounded px-1.5 py-0.5 text-[8.5px] font-extrabold tracking-wider",
+                            isActive ? "bg-[#ede9fe] text-[#6d28d9]" : "bg-white/15 text-white/80"
+                          )}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             );
           })}
         </nav>
@@ -179,10 +197,11 @@ export default function Sidebar({
               <p className="text-[10px] text-white/55">Funded · 3 accounts</p>
             </div>
             <button
+              onClick={() => onNavigate("settings")}
               className="ml-auto rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
               aria-label="Settings"
             >
-              <Settings size={14} />
+              <SettingsIcon size={14} />
             </button>
           </div>
         </div>

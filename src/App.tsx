@@ -7,17 +7,19 @@ import KpiCards from "./components/KpiCards";
 import RadarCard from "./components/charts/RadarCard";
 import CumPnLCard from "./components/charts/CumPnLCard";
 import HeatmapCard from "./components/charts/HeatmapCard";
-
 import DonutCard from "./components/charts/DonutCard";
 import WeekdayBarCard from "./components/charts/WeekdayBarCard";
 import Calendar from "./components/Calendar";
 import TradesTable from "./components/TradesTable";
 import InsightsDrawer from "./components/InsightsDrawer";
 import DailyJournal from "./components/DailyJournal";
-import Notebook from "./components/Notebook";
-import ComingSoon from "./components/ComingSoon";
-import Mt5Bridge from "./components/Mt5Bridge";
 import Accounts from "./components/Accounts";
+import Trades from "./components/Trades";
+import Analytics from "./components/Analytics";
+import Performance from "./components/Performance";
+import Strategies from "./components/Strategies";
+import Goals from "./components/Goals";
+import Settings from "./components/Settings";
 import { Reveal } from "./components/ui";
 import {
   generateTrades,
@@ -46,14 +48,14 @@ import { cn } from "./utils/cn";
 type PageId =
   | "dashboard"
   | "journal"
-  | "trades"
-  | "mt5"
-  | "notebook"
   | "accounts"
-  | "playbooks"
-  | "progress"
-  | "replay"
-  | "resources";
+  | "trades"
+  | "analytics"
+  | "performance"
+  | "strategies"
+  | "calendar"
+  | "goals"
+  | "settings";
 
 interface Toast {
   msg: string;
@@ -202,20 +204,6 @@ export default function App() {
             </Reveal>
           </>
         );
-      case "mt5":
-        return (
-          <Reveal>
-            <Mt5Bridge
-              onNewTrade={(t) => {
-                setTrades((prev) => [...prev, t]);
-                showToast(
-                  `Captured MT5 trade fill: ${t.symbol} ${t.side} (${t.pnl >= 0 ? "+" : ""}${t.pnl})`,
-                  "gain"
-                );
-              }}
-            />
-          </Reveal>
-        );
       case "journal":
         return (
           <>
@@ -236,57 +224,38 @@ export default function App() {
             </Reveal>
           </>
         );
-      case "trades":
-        return (
-          <>
-            <Reveal>
-              <ControlBar
-                filters={filters}
-                onChange={(f) => setFilters((prev) => ({ ...prev, ...f }))}
-                strategies={[...STRATEGIES]}
-                accounts={[...ACCOUNTS]}
-                onImport={() => fileRef.current?.click()}
-                onExport={handleExport}
-                onSample={handleSample}
-                count={current.length}
-              />
-            </Reveal>
-            <Reveal delay={60}>
-              <TradesTable trades={current} />
-            </Reveal>
-          </>
-        );
-      case "notebook":
-        return (
-          <Reveal>
-            <Notebook trades={current} />
-          </Reveal>
-        );
       case "accounts":
-        return (
-          <Reveal>
-            <Accounts />
-          </Reveal>
-        );
-      case "playbooks":
-      case "progress":
-      case "replay":
-      case "resources":
-        return <ComingSoon page={page} />;
+        return <Reveal><Accounts /></Reveal>;
+      case "trades":
+        return <Reveal><Trades trades={current} filters={filters} onFiltersChange={setFilters} onImport={() => fileRef.current?.click()} /></Reveal>;
+      case "analytics":
+        return <Reveal><Analytics trades={current} filters={filters} onFiltersChange={setFilters} /></Reveal>;
+      case "performance":
+        return <Reveal><Performance trades={current} /></Reveal>;
+      case "strategies":
+        return <Reveal><Strategies trades={current} /></Reveal>;
+      case "calendar":
+        return <Reveal><Calendar trades={calTrades} /></Reveal>;
+      case "goals":
+        return <Reveal><Goals /></Reveal>;
+      case "settings":
+        return <Reveal><Settings /></Reveal>;
+      default:
+        return <div className="text-center py-12 text-mut">Page not found</div>;
     }
   };
 
   const pageTitle: Record<PageId, string> = {
     dashboard: "Dashboard",
     journal: "Daily Journal",
-    trades: "Trades",
-    mt5: "MT5 Gateway",
-    notebook: "Notebook",
     accounts: "Accounts",
-    playbooks: "Playbooks",
-    progress: "Progress Tracker",
-    replay: "Trade Replay",
-    resources: "Resource Center",
+    trades: "Trades",
+    analytics: "Analytics",
+    performance: "Performance",
+    strategies: "Strategies",
+    calendar: "Calendar",
+    goals: "Goals",
+    settings: "Settings",
   };
 
   return (
@@ -314,7 +283,7 @@ export default function App() {
         <footer className="mx-auto w-full max-w-[1520px] px-4 pb-4 text-[10.5px] text-faint sm:px-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span>
-              Nexora · journal analytics for futures &amp; FX traders · data is simulated, CSV import/export is live
+              Nexora · journal analytics for futures & FX traders · data is simulated, CSV import/export is live
             </span>
             <span className="tnum">
               {trades.length} trades on file · {current.length} in view

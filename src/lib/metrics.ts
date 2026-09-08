@@ -184,6 +184,18 @@ export function weekdaySeries(list: Trade[]) {
   return agg.filter((a) => a.count > 0 || WD.indexOf(a.day) < 5);
 }
 
+export function monthlySeries(list: Trade[]) {
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const agg = months.map((m, i) => ({ month: m, pnl: 0, trades: 0 }));
+  for (const t of list) {
+    const d = new Date(t.ts);
+    const m = d.getMonth();
+    agg[m].pnl += t.pnl;
+    agg[m].trades++;
+  }
+  return agg;
+}
+
 export function symbolSeries(list: Trade[]) {
   const m = new Map<string, { symbol: string; pnl: number; count: number }>();
   for (const t of list) {
