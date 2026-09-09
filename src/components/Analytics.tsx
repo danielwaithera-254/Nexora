@@ -87,6 +87,14 @@ export default function Analytics({ trades }: AnalyticsProps) {
         <HoverKpi label="Expectancy" value={fmtMoney(k.expectancy,{sign:true})} tone={k.expectancy>=0?"gain":"loss"} sub={`${k.be} breakeven`} daily={daily} hoverDate={hoverDate} onHoverDay={setHoverDate} />
       </div>
 
+      {/* Cool metrics — tradezella-style animated tiles */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <CoolMetric icon="◈" label="Expectancy" value={fmtMoney(k.expectancy,{sign:true})} sub={`${k.wins}W · ${k.losses}L · ${k.be}BE`} tone={k.expectancy>=0?"gain":"loss"} spark={useMemo(()=> [...daily.values()].map(d=>d.pnl), [daily])} onHover={setHoverDate} hoverDate={hoverDate} />
+        <CoolMetric icon="🔥" label="Streak" value={`${k.streak.len} ${k.streak.type}`} tone={k.streak.type==="win"?"gain":k.streak.type==="loss"?"loss":"brand"} sub={`${k.streak.type==="none"?"no streak":k.streak.type==="win"?"keep discipline":"size down"}`} spark={useMemo(()=> [...daily.values()].map(d=>d.pnl>0?1:-1), [daily])} onHover={setHoverDate} hoverDate={hoverDate} />
+        <CoolMetric icon="◆" label="Best / Worst" value={`${fmtMoney(k.bestTrade)} / ${fmtMoney(k.worstTrade)}`} tone="brand" sub={`avg win ${fmtMoney(k.avgWin)} · avg loss ${fmtMoney(k.avgLoss)}`} spark={current.map(t=>t.pnl)} onHover={setHoverDate} hoverDate={hoverDate} />
+        <CoolMetric icon="⬢" label="Profit Factor" value={k.pf.toFixed(2)} tone={k.pf>=1.5?"gain":k.pf>=1?"brand":"loss"} sub={`${fmtMoney(k.grossProfit)} won · ${fmtMoney(k.grossLoss)} lost`} spark={useMemo(()=> monthly.map(m=>m.pnl), [monthly])} onHover={setHoverDate} hoverDate={hoverDate} />
+      </div>
+
       {/* Stacked layout: big cards alone, small side-by-side */}
       <div className="space-y-4">
         {/* BIG: Cumulative P&L alone */}
@@ -230,5 +238,30 @@ function DistributionCard({ daily, onHover, hoverDate }: { daily: Map<string,{pn
       </div>
       <p className="mt-2 text-center text-[10px] font-medium text-faint">hover a bar to see the day: ${hoverDate ? daily.get(hoverDate)?.pnl : "—"}</p>
     </Card>
+  );
+}
+
+function CoolMetric({ icon, label, value, sub, tone, spark, hoverDate, onHover }: { icon:string; label:string; value:string; sub:string; tone:string; spark:number[]; hoverDate:string|null; onHover:(d:string|null)=>void }) {
+  const max = Math.max(...spark.map(v=>Math.abs(v)), 1);
+  const path = spark.map((v,i)=> {
+    const x=(i/Math.max(1,spark.length-1))*100;
+    const y=24 - ((v+max)/(max*2))*18;
+    return `${i===0?"M":"L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(" ");
+  return (
+    <div className="group relative overflow-hidden rounded-2xl border border-edge bg-panel p-4 transition-all hover:-translate-y-1 hover:border-brand/30 hover:shadow-[0_12px_32px_-16px_rgba(124,58,237,0.35)]">
+      <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-[radial-gradient(circle,var(--brand-soft),transparent_70%)] opacity-60" />
+      <div className="relative flex items-start justify-between">
+        <div>
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-mut">{label}</p>
+          <p className="mt-1 font-display text-xl font-bold tnum" style={{color:`var(--${tone})`}}>{value}</p>
+          <p className="mt-1 text-[11px] font-medium text-faint">{sub}</p>
+        </div>
+        <span className="grid h-8 w-8 place-items-center rounded-xl bg-brand-soft text-brand">{icon}</span>
+      </div>
+      <svg viewBox="0 0 100 24" className="mt-3 h-8 w-full" preserveAspectRatio="none">
+        <path d={path} fill="none" stroke={`var(--${tone})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" opacity={0.9} />
+      </svg>
+    </div>
   );
 }

@@ -16,6 +16,10 @@ import {
   TrendingUp,
   BookOpen,
   Flame,
+  PanelLeftClose,
+  PanelLeftOpen,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "../utils/cn";
 
@@ -65,12 +69,16 @@ export default function Sidebar({
   onNavigate,
   onAddTrade,
   active,
+  collapsed,
+  onToggleCollapsed,
 }: {
   open: boolean;
   onClose: () => void;
   onNavigate: (id: PageId) => void;
   onAddTrade: () => void;
   active: PageId;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }) {
   return (
     <>
@@ -84,16 +92,17 @@ export default function Sidebar({
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[240px] flex-col text-white transition-transform duration-300",
+          "fixed inset-y-0 left-0 z-50 flex flex-col text-white transition-all duration-300",
           "bg-[linear-gradient(168deg,#1e0b45_0%,#4c1d95_55%,#7c3aed_100%)]",
           "shadow-[6px_0_32px_-12px_rgba(30,11,69,0.55)]",
+          collapsed ? "w-[64px]" : "w-[240px]",
           open ? "translate-x-0" : "-translate-x-full",
           "lg:sticky lg:top-0 lg:h-screen lg:translate-x-0"
         )}
       >
         {/* brand */}
-        <div className="flex items-center gap-2.5 px-5 pb-6 pt-6">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-white shadow-[0_4px_14px_-4px_rgba(0,0,0,0.45)]">
+        <div className={cn("flex items-center gap-2.5 pb-6 pt-6", collapsed ? "justify-center px-2" : "px-5")}>
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white shadow-[0_4px_14px_-4px_rgba(0,0,0,0.45)]">
             <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
               <path
                 d="M6 22l6-8 5 5 9-12"
@@ -105,42 +114,57 @@ export default function Sidebar({
               <circle cx="26" cy="7" r="3" fill="#a855f7" />
             </svg>
           </span>
-          <div className="min-w-0">
-            <p className="font-display text-[18px] font-bold leading-none tracking-[-0.02em] text-white">
-              Nex<span className="text-[#d8b4fe]">ora</span>
-            </p>
-            <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.18em] text-white/55">
-              Trading Journal
-            </p>
-          </div>
+          {!collapsed && (
+            <div className="min-w-0">
+              <p className="font-display text-[18px] font-bold leading-none tracking-[-0.02em] text-white">
+                Nex<span className="text-[#d8b4fe]">ora</span>
+              </p>
+              <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.18em] text-white/55">
+                Trading Journal
+              </p>
+            </div>
+          )}
           <button
-            className="ml-auto rounded-md p-1 text-white/60 hover:bg-white/10 hover:text-white lg:hidden"
+            className={cn("rounded-md p-1 text-white/60 hover:bg-white/10 hover:text-white", collapsed ? "hidden lg:hidden" : "ml-auto lg:hidden")}
             onClick={onClose}
           >
             <X size={16} />
           </button>
+          <button
+            onClick={onToggleCollapsed}
+            className={cn("hidden rounded-md p-1.5 text-white/60 hover:bg-white/10 hover:text-white lg:flex", collapsed ? "ml-0" : "ml-auto")}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
         </div>
 
         {/* add trade */}
-        <div className="px-4">
+        <div className={cn("px-4", collapsed && "px-2")}>
           <button
             onClick={onAddTrade}
-            className="group flex w-full items-center justify-center gap-2 rounded-xl bg-white py-2.5 text-[13px] font-bold text-[#5b21b6] shadow-[0_6px_18px_-6px_rgba(0,0,0,0.5)] transition-all hover:-translate-y-px hover:shadow-[0_10px_24px_-8px_rgba(0,0,0,0.55)] active:translate-y-0 active:scale-[0.98]"
+            className={cn(
+              "group flex items-center justify-center gap-2 rounded-xl bg-white font-bold text-[#5b21b6] shadow-[0_6px_18px_-6px_rgba(0,0,0,0.5)] transition-all hover:-translate-y-px hover:shadow-[0_10px_24px_-8px_rgba(0,0,0,0.55)] active:translate-y-0 active:scale-[0.98]",
+              collapsed ? "h-9 w-9 p-0" : "w-full py-2.5 text-[13px]"
+            )}
+            title={collapsed ? "Add trade" : undefined}
           >
             <Plus size={15} strokeWidth={3} className="transition-transform duration-300 group-hover:rotate-90" />
-            Add trade
+            {!collapsed && "Add trade"}
           </button>
         </div>
 
         {/* nav */}
-        <nav className="mt-6 flex-1 space-y-1 overflow-y-auto px-3 pb-4">
+        <nav className={cn("mt-6 flex-1 space-y-1 overflow-y-auto pb-4", collapsed ? "px-2" : "px-3")}>
           {["workspace", "analytics", "habits", "settings"].map((section) => {
             const items = NAV.filter((n) => n.section === section);
             return (
               <div key={section} className="space-y-1">
-                <p className="px-3 pb-2 text-[9px] font-bold uppercase tracking-[0.16em] text-white/40">
-                  {SECTION_LABELS[section]}
-                </p>
+                {!collapsed && (
+                  <p className="px-3 pb-2 text-[9px] font-bold uppercase tracking-[0.16em] text-white/40">
+                    {SECTION_LABELS[section]}
+                  </p>
+                )}
                 {items.map((item) => {
                   const Icon = item.icon;
                   const isActive = active === item.id;
@@ -151,8 +175,10 @@ export default function Sidebar({
                         onNavigate(item.id);
                         onClose();
                       }}
+                      title={collapsed ? item.name : undefined}
                       className={cn(
-                        "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[12.5px] font-semibold transition-all duration-200",
+                        "group relative flex items-center gap-3 rounded-xl text-[12.5px] font-semibold transition-all duration-200",
+                        collapsed ? "justify-center p-2.5" : "w-full px-3 py-2.5",
                         isActive
                           ? "bg-white text-[#5b21b6] shadow-[0_6px_16px_-6px_rgba(0,0,0,0.45)]"
                           : "text-white/70 hover:bg-white/[0.13] hover:text-white"
@@ -167,8 +193,8 @@ export default function Sidebar({
                             : "text-white/50 group-hover:translate-x-0.5 group-hover:text-white"
                         )}
                       />
-                      <span className="truncate">{item.name}</span>
-                      {item.badge && (
+                      {!collapsed && <span className="truncate">{item.name}</span>}
+                      {!collapsed && item.badge && (
                         <span
                           className={cn(
                             "ml-auto rounded px-1.5 py-0.5 text-[8.5px] font-extrabold tracking-wider",
@@ -187,22 +213,26 @@ export default function Sidebar({
         </nav>
 
         {/* footer */}
-        <div className="border-t border-white/12 px-4 py-4">
-          <div className="flex items-center gap-3">
+        <div className={cn("border-t border-white/12 py-4", collapsed ? "px-2" : "px-4")}>
+          <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-[11px] font-extrabold text-[#4c1d95]">
               JT
             </span>
-            <div className="min-w-0">
-              <p className="truncate text-[12px] font-bold text-white">Jordan Tate</p>
-              <p className="text-[10px] text-white/55">Funded · 3 accounts</p>
-            </div>
-            <button
-              onClick={() => onNavigate("settings")}
-              className="ml-auto rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
-              aria-label="Settings"
-            >
-              <SettingsIcon size={14} />
-            </button>
+            {!collapsed && (
+              <>
+                <div className="min-w-0">
+                  <p className="truncate text-[12px] font-bold text-white">Jordan Tate</p>
+                  <p className="text-[10px] text-white/55">Funded · 3 accounts</p>
+                </div>
+                <button
+                  onClick={() => onNavigate("settings")}
+                  className="ml-auto rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+                  aria-label="Settings"
+                >
+                  <SettingsIcon size={14} />
+                </button>
+              </>
+            )}
           </div>
         </div>
       </aside>

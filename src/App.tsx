@@ -67,6 +67,7 @@ export default function App() {
   const [filters, setFilters] = useState<Filters>({ range: "90D", strategy: "All", account: "All" });
   const [dark, setDark] = useState(() => localStorage.getItem("nexora-dark") === "1");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("nexora-collapsed") === "1");
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [page, setPage] = useState<PageId>("dashboard");
   const [toast, setToast] = useState<Toast | null>(null);
@@ -86,6 +87,10 @@ export default function App() {
     document.documentElement.classList.toggle("dark", dark);
     localStorage.setItem("nexora-dark", dark ? "1" : "0");
   }, [dark]);
+
+  useEffect(() => {
+    localStorage.setItem("nexora-collapsed", sidebarCollapsed ? "1" : "0");
+  }, [sidebarCollapsed]);
 
   const showToast = (msg: string, tone: Toast["tone"] = "brand") => {
     window.clearTimeout(toastTimer.current);
@@ -266,6 +271,8 @@ export default function App() {
         onNavigate={handleNavigate}
         onAddTrade={() => fileRef.current?.click()}
         active={page}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">

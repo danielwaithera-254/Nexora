@@ -360,30 +360,31 @@ export default function Accounts() {
         </div>
       )}
 
-      {/* Account grid */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {/* Account grid — compact performance-rich cards */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {filteredAccounts.map((acc) => {
           const d = derived(acc);
           const pnlTone = d.pnl >= 0 ? "var(--gain)" : "var(--loss)";
           const ddTone = d.dd > acc.maxDrawdown ? "var(--loss)" : d.dd > acc.maxDrawdown * 0.6 ? "var(--warn)" : "var(--gain)";
+          const spark = balanceSeries(acc.trades, acc.size).slice(-20).map((p) => p.balance);
           return (
-            <Card key={acc.id} elevated className="flex flex-col p-5">
-              <div className="mb-4 flex items-start gap-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-sm font-extrabold text-brand">
+            <Card key={acc.id} elevated className="flex flex-col overflow-hidden">
+              <div className="flex items-center gap-2.5 border-b border-edge bg-panel2/60 px-4 py-3">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-soft text-xs font-extrabold text-brand">
                   {initials(acc.name)}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <h3 className="truncate font-display text-[17px] font-bold leading-tight text-ink">{acc.name}</h3>
-                  <p className="truncate text-xs text-mut">
-                    {acc.broker || "No broker set"} · {acc.accountNumber || "no number"}
+                  <h3 className="truncate font-display text-[13px] font-bold leading-tight text-ink">{acc.name}</h3>
+                  <p className="truncate text-[11px] text-mut">
+                    {acc.broker || "No broker"} · {acc.type}
                   </p>
                 </div>
                 <button
                   onClick={() => toggleStatus(acc.id)}
-                  title={acc.status === "Connected" ? "Click to disconnect" : "Click to connect"}
+                  title={acc.status}
                   className={cn(
                     "flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors",
-                    acc.status === "Connected" ? "bg-gain-soft text-gain hover:bg-gain/25" : "bg-loss-soft text-loss hover:bg-loss/25"
+                    acc.status === "Connected" ? "bg-gain-soft text-gain hover:bg-gain/20" : "bg-loss-soft text-loss hover:bg-loss/20"
                   )}
                 >
                   {acc.status === "Connected" ? <Wifi size={10} /> : <WifiOff size={10} />}
@@ -391,95 +392,81 @@ export default function Accounts() {
                 </button>
               </div>
 
-              <div className="mb-3 grid grid-cols-3 gap-2">
-                <div className="rounded-xl border border-edge bg-panel2 p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-mut">Balance</p>
-                  <p className="tnum mt-0.5 font-display text-lg font-bold text-ink">{fmtMoney(d.balance)}</p>
+              <div className="space-y-3 p-3">
+                <div className="grid grid-cols-3 gap-1.5">
+                  <div className="rounded-lg bg-panel2 p-2 text-center">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-mut">Bal</p>
+                    <p className="tnum font-display text-[13px] font-bold text-ink">{fmtMoney(d.balance)}</p>
+                  </div>
+                  <div className="rounded-lg bg-panel2 p-2 text-center">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-mut">Equity</p>
+                    <p className="tnum font-display text-[13px] font-bold text-ink">{fmtMoney(d.equity)}</p>
+                  </div>
+                  <div className="rounded-lg bg-panel2 p-2 text-center">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-mut">P&L</p>
+                    <p className="tnum font-display text-[13px] font-bold" style={{ color: pnlTone }}>
+                      {d.pnl >= 0 ? "+" : ""}
+                      {fmtMoney(d.pnl)}
+                    </p>
+                  </div>
                 </div>
-                <div className="rounded-xl border border-edge bg-panel2 p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-mut">Equity</p>
-                  <p className="tnum mt-0.5 font-display text-lg font-bold text-ink">{fmtMoney(d.equity)}</p>
+
+                <div className="rounded-lg border border-edge bg-panel p-2">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-mut">Performance</span>
+                    <span className="text-[10px] font-bold text-mut">{acc.trades.length} trades</span>
+                  </div>
+                  {spark.length > 1 ? (
+                    <MiniEquity points={spark} up={d.pnl >= 0} />
+                  ) : (
+                    <div className="flex h-[32px] items-center justify-center rounded bg-panel2 text-[11px] text-faint">No trades yet</div>
+                  )}
+                  <div className="mt-2 grid grid-cols-3 gap-1 text-center">
+                    <div>
+                      <p className="text-[9px] font-bold uppercase text-mut">Win</p>
+                      <p className="tnum text-xs font-bold" style={{ color: d.k.winRate >= 50 ? "var(--gain)" : "var(--loss)" }}>{d.k.winRate.toFixed(0)}%</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold uppercase text-mut">PF</p>
+                      <p className="tnum text-xs font-bold text-ink">{d.k.pf.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold uppercase text-mut">DD</p>
+                      <p className="tnum text-xs font-bold" style={{ color: ddTone }}>{d.dd.toFixed(1)}%</p>
+                    </div>
+                  </div>
+                  <div className="mt-2 h-1 overflow-hidden rounded-full bg-edge2">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${acc.maxDrawdown > 0 ? Math.min(100, (d.dd / acc.maxDrawdown) * 100) : 0}%`, background: ddTone }} />
+                  </div>
                 </div>
-                <div className="rounded-xl border border-edge bg-panel2 p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-mut">P&amp;L</p>
-                  <p className="tnum mt-0.5 font-display text-lg font-bold" style={{ color: pnlTone }}>
-                    {d.pnl >= 0 ? "+" : ""}
-                    {fmtMoney(d.pnl)}
-                  </p>
+
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="truncate font-mono text-mut">{acc.accountNumber || "—"} · {acc.platform || "—"}</span>
+                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-faint">{fmtMoney(acc.size)} cap</span>
                 </div>
               </div>
 
-              <div className="mb-4 grid grid-cols-3 gap-2">
-                <div className="rounded-xl border border-edge bg-panel2 p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-mut">Drawdown</p>
-                  <p className="tnum mt-0.5 font-display text-lg font-bold" style={{ color: ddTone }}>
-                    {d.dd.toFixed(1)}%
-                  </p>
-                </div>
-                <div className="rounded-xl border border-edge bg-panel2 p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-mut">Size</p>
-                  <p className="tnum mt-0.5 font-display text-lg font-bold text-ink">{fmtMoney(acc.size)}</p>
-                </div>
-                <div className="rounded-xl border border-edge bg-panel2 p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-mut">Trades</p>
-                  <p className="tnum mt-0.5 font-display text-lg font-bold text-ink">{acc.trades.length}</p>
-                </div>
-              </div>
-
-              <div className="mb-4 space-y-1.5 rounded-xl border border-edge bg-panel2 p-3 text-[13px]">
-                <div className="flex justify-between gap-3">
-                  <span className="text-mut">Type</span>
-                  <span className="font-medium capitalize text-ink">{acc.type.toLowerCase()}</span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-mut">Platform</span>
-                  <span className="truncate font-medium text-ink">{acc.platform || "—"}</span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-mut">Max DD limit</span>
-                  <span className="tnum font-medium text-ink">{acc.maxDrawdown}%</span>
-                </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-edge2">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${acc.maxDrawdown > 0 ? Math.min(100, (d.dd / acc.maxDrawdown) * 100) : 0}%`,
-                      background: ddTone,
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="mt-auto flex items-center gap-2 border-t border-edge pt-3">
-                <button
-                  onClick={() => setDetailId(acc.id)}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-sm font-semibold text-mut transition-colors hover:border-brand hover:bg-brand-soft hover:text-brand"
-                >
-                  <Eye size={14} />
-                  <span>Details</span>
+              <div className="mt-auto flex gap-1.5 border-t border-edge bg-panel2/40 p-2">
+                <button onClick={() => setDetailId(acc.id)} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-edge bg-panel px-2 py-1.5 text-xs font-semibold text-mut hover:border-brand hover:text-brand">
+                  <Eye size={12} />
+                  Details
                 </button>
-                <button
-                  onClick={() => {
-                    setManageId(acc.id);
-                    setEditForm({ ...acc });
-                  }}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-deep"
-                >
-                  <Settings size={14} />
-                  <span>Manage</span>
+                <button onClick={() => { setManageId(acc.id); setEditForm({ ...acc }); }} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand px-2 py-1.5 text-xs font-semibold text-white hover:bg-brand-deep">
+                  <Settings size={12} />
+                  Manage
                 </button>
               </div>
             </Card>
           );
         })}
 
-        <Card elevated className="flex min-h-[320px] flex-col items-center justify-center border-2 border-dashed border-edge2 p-5">
-          <button onClick={addAccount} className="flex w-full cursor-pointer flex-col items-center justify-center gap-3 px-4 py-8 text-center">
-            <div className="grid h-16 w-16 place-items-center rounded-full border-2 border-dashed border-brand">
-              <Plus className="h-8 w-8 text-brand" />
+        <Card elevated className="flex min-h-[240px] flex-col items-center justify-center border-2 border-dashed border-edge2 p-4">
+          <button onClick={addAccount} className="flex w-full cursor-pointer flex-col items-center justify-center gap-2 px-2 py-6 text-center">
+            <div className="grid h-10 w-10 place-items-center rounded-full border-2 border-dashed border-brand">
+              <Plus className="h-5 w-5 text-brand" />
             </div>
-            <span className="text-lg font-semibold text-ink">Add Trading Account</span>
-            <span className="text-sm text-mut">Configure broker, size, drawdown limit, then upload its CSV</span>
+            <span className="text-sm font-bold text-ink">Add Trading Account</span>
+            <span className="text-xs text-mut">Configure then upload CSV</span>
           </button>
         </Card>
       </div>
@@ -800,6 +787,23 @@ function EquitySpark({ points }: { points: number[] }) {
       </defs>
       <polyline points={`10,95 ${pts.join(" ")} 590,95`} fill="url(#accEqFill)" stroke="none" />
       <polyline points={pts.join(" ")} fill="none" stroke={up ? "var(--gain)" : "var(--loss)"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function MiniEquity({ points, up }: { points: number[]; up: boolean }) {
+  if (points.length < 2) return null;
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  const span = max - min || 1;
+  const d = points.map((v, i) => {
+    const x = (i / Math.max(1, points.length - 1)) * 100;
+    const y = 30 - ((v - min) / span) * 24;
+    return `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(" ");
+  return (
+    <svg viewBox="0 0 100 30" className="h-[32px] w-full" preserveAspectRatio="none">
+      <path d={d} fill="none" stroke={up ? "var(--gain)" : "var(--loss)"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
