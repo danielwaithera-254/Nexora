@@ -1,10 +1,24 @@
-import { useState, useEffect } from "react";
-import { Upload, Download, Trash2, FileText, Plus, BarChart3, Link2, Unlink2, Save, X, Edit2, Trash, RotateCcw, ExternalLink, Settings, Wifi, WifiOff, Eye, EyeOff } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Upload,
+  Download,
+  FileText,
+  Plus,
+  Edit2,
+  Trash2,
+  RotateCcw,
+  Settings,
+  Wifi,
+  WifiOff,
+  Eye,
+  X,
+  Search,
+  Link2,
+} from "lucide-react";
 import { Card, CardHead } from "./ui";
 import { parseTradesCSV, sampleCSV, tradesToCSV, type Trade } from "../data/trades";
-import { computeKpis, balanceSeries, dailyMap, type Kpis } from "../lib/metrics";
-import { fmtMoney, fmtPct, fmtNum } from "../lib/format";
-import { Card as CardComp } from "./ui";
+import { computeKpis, balanceSeries } from "../lib/metrics";
+import { fmtMoney } from "../lib/format";
 import { cn } from "../utils/cn";
 import { vaultGet, vaultSet } from "../lib/vault";
 
@@ -15,173 +29,168 @@ interface AccountConfig {
   accountNumber: string;
   type: "Funded" | "Personal" | "Prop" | "Demo";
   size: number;
-  balance: number;
-  equity: number;
-  pnl: number;
-  drawdown: number;
   maxDrawdown: number;
-  status: "Connected" | "Disconnected" | "Error";
+  status: "Connected" | "Disconnected";
   platform: string;
   trades: Trade[];
   createdAt: number;
   updatedAt: number;
 }
 
-interface AccountSummary {
-  name: string;
-  trades: number;
-  netPnl: number;
-  winRate: number;
-  profitFactor: number;
-  avgR: number;
-}
-
-function parseFile(file: File): Promise<Trade[]> {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const parsed = parseTradesCSV(String(reader.result ?? ""));
-      resolve(parsed);
-    };
-    reader.readAsText(file);
-  });
-}
-
-function computeAccountMetrics(trades: Trade[]): { kpis: Kpis; accounts: AccountSummary[] } {
-  const kpis = computeKpis(trades);
-  
-  const accountMap = new Map<string, Trade[]>();
-  for (const t of trades) {
-    const arr = accountMap.get(t.account) || [];
-    arr.push(t);
-    accountMap.set(t.account, arr);
-  }
-
-  const accounts: AccountSummary[] = [];
-  for (const [name, trades] of accountMap) {
-    const k = computeKpis(trades);
-    accounts.push({
-      name,
-      trades: trades.length,
-      netPnl: k.net,
-      winRate: k.winRate,
-      profitFactor: k.pf,
-      avgR: k.wlRatio,
-    });
-  }
-  accounts.sort((a, b) => b.netPnl - a.netPnl);
-  
-  return { kpis: computeKpis(trades), accounts };
-}
-
 const VAULT_KEY = "nexora-accounts";
 
-function loadAccounts(): AccountConfig[] {
+function loadAccounts(): AccountConfig[] | null {
   try {
     const stored = vaultGet<AccountConfig[]>(VAULT_KEY, []);
-    return stored.filter(a => a.trades && a.trades.length > 0);
+    return stored.length ? stored : null;
   } catch {
-    return [];
+    return null;
   }
-}
-
-function saveAccounts(accounts: AccountConfig[]) {
-  vaultSet(VAULT_KEY, accounts);
 }
 
 function getDefaultAccounts(): AccountConfig[] {
+  const now = Date.now();
   return [
     {
-      id: "acc-1",
+      id: "acc-fundednext-5k",
       name: "FundedNext 5K",
       broker: "FundedNext",
       accountNumber: "FN-847291",
       type: "Prop",
       size: 5000,
-      balance: 5284.30,
-      equity: 5271.80,
-      pnl: 284.30,
-      drawdown: 2.4,
       maxDrawdown: 5,
       status: "Connected",
       platform: "FundedNext CFD",
       trades: [],
-      createdAt: Date.now() - 86400000 * 30,
-      updatedAt: Date.now(),
+      createdAt: now - 86400000 * 30,
+      updatedAt: now,
     },
     {
-      id: "acc-2",
+      id: "acc-hola-2k",
       name: "Hola Prime 2K",
       broker: "Hola Prime",
       accountNumber: "HP-339102",
       type: "Prop",
       size: 2000,
-      balance: 2146.80,
-      equity: 2139.40,
-      pnl: 146.80,
-      drawdown: 3.1,
       maxDrawdown: 5,
       status: "Connected",
       platform: "Hola Prime DX",
       trades: [],
-      createdAt: Date.now() - 86400000 * 15,
-      updatedAt: Date.now(),
+      createdAt: now - 86400000 * 15,
+      updatedAt: now,
     },
     {
-      id: "acc-3",
+      id: "acc-personal-swing",
       name: "Personal Swing",
       broker: "Interactive Brokers",
       accountNumber: "IB-U982341",
       type: "Personal",
       size: 25000,
-      balance: 26340.50,
-      equity: 26410.20,
-      pnl: 1340.50,
-      drawdown: 1.2,
       maxDrawdown: 10,
       status: "Connected",
       platform: "IBKR TWS",
       trades: [],
-      createdAt: Date.now() - 86400000 * 90,
-      updatedAt: Date.now(),
+      createdAt: now - 86400000 * 90,
+      updatedAt: now,
     },
   ];
 }
 
-export default function Accounts() {
-  const [accounts, setAccounts] = useState<AccountConfig[]>(() => {
-    const loaded = loadAccounts();
-    return loaded.length > 0 ? loaded : getDefaultAccounts();
+function parseFile(file: File): Promise<Trade[]> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(parseTradesCSV(String(reader.result ?? "")));
+    reader.readAsText(file);
   });
+}
+
+function maxDrawdownPct(trades: Trade[], size: number): number {
+  if (!trades.length || size <= 0) return 0;
+  let bal = size;
+  let peak = size;
+  let maxDd = 0;
+  const sorted = [...trades].sort((a, b) => a.ts - b.ts);
+  for (const t of sorted) {
+    bal += t.pnl;
+    peak = Math.max(peak, bal);
+    if (peak > 0) maxDd = Math.max(maxDd, ((peak - bal) / peak) * 100);
+  }
+  return Math.round(maxDd * 10) / 10;
+}
+
+function derived(acc: AccountConfig) {
+  const k = computeKpis(acc.trades);
+  const pnl = k.net;
+  const balance = acc.size + pnl;
+  const equity = acc.size + pnl;
+  const dd = maxDrawdownPct(acc.trades, acc.size);
+  return { k, pnl, balance, equity, dd };
+}
+
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+export default function Accounts() {
+  const [accounts, setAccounts] = useState<AccountConfig[]>(() => loadAccounts() ?? getDefaultAccounts());
   const [filter, setFilter] = useState<"all" | "connected" | "disconnected">("all");
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [manageId, setManageId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<AccountConfig>>({});
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
-    saveAccounts(accounts);
+    saveAccounts();
   }, [accounts]);
+  function saveAccounts() {
+    try {
+      vaultSet(VAULT_KEY, accounts);
+    } catch {
+      /* vault locked — state still works for the session */
+    }
+  }
 
-  const filteredAccounts = accounts.filter(acc => {
-    if (filter === "connected") return acc.status === "Connected";
-    if (filter === "disconnected") return acc.status !== "Connected";
-    return true;
-  });
+  useEffect(() => {
+    if (!notice) return;
+    const t = window.setTimeout(() => setNotice(null), 3200);
+    return () => window.clearTimeout(t);
+  }, [notice]);
 
-  const allTrades = accounts.flatMap(a => a.trades.map(t => ({ ...t, account: a.name })));
-  const { kpis } = computeAccountMetrics(allTrades);
+  const filteredAccounts = useMemo(
+    () =>
+      accounts.filter((acc) => {
+        if (filter === "connected" && acc.status !== "Connected") return false;
+        if (filter === "disconnected" && acc.status === "Connected") return false;
+        if (query.trim()) {
+          const q = query.toLowerCase();
+          return [acc.name, acc.broker, acc.accountNumber, acc.platform, acc.type]
+            .join(" ")
+            .toLowerCase()
+            .includes(q);
+        }
+        return true;
+      }),
+    [accounts, filter, query]
+  );
+
+  const detailAcc = detailId ? accounts.find((a) => a.id === detailId) ?? null : null;
+  const manageAcc = manageId ? accounts.find((a) => a.id === manageId) ?? null : null;
 
   const addAccount = () => {
-    const newAccount: AccountConfig = {
+    const acc: AccountConfig = {
       id: `acc-${Date.now()}`,
       name: `New Account ${accounts.length + 1}`,
       broker: "",
       accountNumber: "",
       type: "Personal",
       size: 10000,
-      balance: 0,
-      equity: 0,
-      pnl: 0,
-      drawdown: 0,
       maxDrawdown: 10,
       status: "Disconnected",
       platform: "",
@@ -189,61 +198,136 @@ export default function Accounts() {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
-    setAccounts(prev => [...prev, newAccount]);
-  };
-
-  const startEdit = (acc: AccountConfig) => {
-    setEditingId(acc.id);
+    setAccounts((prev) => [...prev, acc]);
+    setManageId(acc.id);
     setEditForm({ ...acc });
   };
 
-  const saveEdit = (id: string) => {
-    setAccounts(prev => prev.map(a => a.id === id ? { ...a, ...editForm, updatedAt: Date.now() } : a));
-    setEditingId(null);
-    setEditForm({});
+  const openManage = (acc: AccountConfig) => {
+    setManageId(acc.id);
+    setEditForm({ ...acc });
   };
 
-  const cancelEdit = () => {
-    setEditingId(null);
+  const saveManage = () => {
+    if (!manageId) return;
+    const name = (editForm.name ?? "").trim() || "Untitled Account";
+    const size = Math.max(0, Number(editForm.size) || 0);
+    const maxDd = Math.min(100, Math.max(0, Number(editForm.maxDrawdown) || 0));
+    setAccounts((prev) =>
+      prev.map((a) =>
+        a.id === manageId
+          ? { ...a, ...editForm, name, size, maxDrawdown: maxDd, updatedAt: Date.now() }
+          : a
+      )
+    );
+    setManageId(null);
     setEditForm({});
+    setNotice({ ok: true, text: "Account saved." });
   };
 
   const deleteAccount = (id: string) => {
-    if (confirm("Delete this account and all its trade data? This cannot be undone.")) {
-      setAccounts(prev => prev.filter(a => a.id !== id));
+    const acc = accounts.find((a) => a.id === id);
+    if (!acc) return;
+    if (!window.confirm(`Delete "${acc.name}" and its ${acc.trades.length} trades? This cannot be undone.`)) return;
+    setAccounts((prev) => prev.filter((a) => a.id !== id));
+    if (detailId === id) setDetailId(null);
+    if (manageId === id) {
+      setManageId(null);
+      setEditForm({});
     }
+    setNotice({ ok: true, text: `"${acc.name}" deleted.` });
   };
 
   const toggleStatus = (id: string) => {
-    setAccounts(prev => prev.map(a => a.id === id ? { ...a, status: a.status === "Connected" ? "Disconnected" : "Connected", updatedAt: Date.now() } : a));
+    setAccounts((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? { ...a, status: a.status === "Connected" ? "Disconnected" : "Connected", updatedAt: Date.now() }
+          : a
+      )
+    );
   };
 
-  const pnlColor = (pnl: number) => pnl >= 0 ? "var(--gain)" : "var(--loss)";
-  const drawdownColor = (dd: number) => dd > 5 ? "var(--loss)" : dd > 2 ? "var(--warn)" : "var(--gain)";
+  const handleFileUpload = async (id: string, file: File | undefined) => {
+    if (!file) return;
+    setUploadingId(id);
+    try {
+      const parsed = await parseFile(file);
+      if (!parsed.length) {
+        setNotice({ ok: false, text: `No valid rows in ${file.name}. Expected headers: date, symbol, side, pnl…` });
+        return;
+      }
+      setAccounts((prev) =>
+        prev.map((a) =>
+          a.id === id ? { ...a, trades: parsed, status: "Connected", updatedAt: Date.now() } : a
+        )
+      );
+      setNotice({ ok: true, text: `Imported ${parsed.length} trades into ${accounts.find((a) => a.id === id)?.name ?? "account"}.` });
+    } finally {
+      setUploadingId(null);
+    }
+  };
+
+  const clearTrades = (id: string) => {
+    const acc = accounts.find((a) => a.id === id);
+    if (!acc || !acc.trades.length) return;
+    if (!window.confirm(`Remove all ${acc.trades.length} trades from "${acc.name}"? The account itself will stay.`)) return;
+    setAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, trades: [], updatedAt: Date.now() } : a)));
+    setNotice({ ok: true, text: `Cleared trades for "${acc.name}". Upload a new CSV any time.` });
+  };
+
+  const loadSample = (id: string) => {
+    const parsed = parseTradesCSV(sampleCSV());
+    if (!parsed.length) return;
+    setAccounts((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, trades: parsed, status: "Connected", updatedAt: Date.now() } : a))
+    );
+    setNotice({ ok: true, text: `Loaded ${parsed.length} sample trades.` });
+  };
+
+  const exportAccount = (id: string) => {
+    const acc = accounts.find((a) => a.id === id);
+    if (!acc || !acc.trades.length) {
+      setNotice({ ok: false, text: "Nothing to export — upload trades first." });
+      return;
+    }
+    const csv = tradesToCSV(acc.trades);
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${acc.name.toLowerCase().replace(/\s+/g, "-")}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setNotice({ ok: true, text: `Exported ${acc.trades.length} trades.` });
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink">Accounts</h1>
-          <p className="text-mut mt-0.5">Manage and monitor your connected trading accounts</p>
+          <p className="mt-0.5 text-mut">Manage and monitor your connected trading accounts</p>
         </div>
-        <button onClick={addAccount} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-brand text-white font-semibold hover:bg-brand-deep transition-colors">
+        <button
+          onClick={addAccount}
+          className="flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 font-semibold text-white transition-colors hover:bg-brand-deep"
+        >
           <Plus size={16} />
           <span>Add Account</span>
         </button>
       </div>
 
-      {/* Filter Bar */}
+      {/* Filter + search */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1 bg-panel2 rounded-xl p-1">
-          {["all", "connected", "disconnected"].map((f) => (
+        <div className="flex gap-1 rounded-xl bg-panel2 p-1">
+          {(["all", "connected", "disconnected"] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               className={cn(
-                "px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors",
+                "rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors",
                 filter === f ? "bg-brand text-white" : "text-mut hover:text-ink"
               )}
             >
@@ -251,124 +335,472 @@ export default function Accounts() {
             </button>
           ))}
         </div>
-        <span className="text-sm text-mut ml-auto">
+        <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
+          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search name, broker, number…"
+            className="w-full rounded-xl border border-edge bg-panel py-2 pl-9 pr-3 text-sm text-ink outline-none transition-colors placeholder:text-faint focus:border-brand"
+          />
+        </div>
+        <span className="ml-auto text-sm text-mut">
           {filteredAccounts.length} of {accounts.length} accounts
         </span>
       </div>
 
-      {/* Account Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {filteredAccounts.map((acc) => (
-          <Card key={acc.id} elevated className="p-5">
-            {/* Header Row */}
-            <div className="flex items-start justify-between gap-4 mb-4">
-              <div className="flex-1 min-w-0 flex items-center gap-3">
-                <div className={cn("w-2.5 h-2.5 rounded-full flex-shrink-0", acc.status === "Connected" ? "bg-gain" : "var(--loss)")} />
-                <div className="min-w-0">
-                  <h3 className="font-display text-lg font-bold text-ink truncate pr-4">{acc.name}</h3>
-                  <p className="text-xs text-mut truncate">{acc.broker}</p>
+      {notice && (
+        <div
+          className={cn(
+            "rounded-xl border px-4 py-3 text-sm font-semibold",
+            notice.ok ? "border-gain/30 bg-gain-soft text-gain" : "border-loss/30 bg-loss-soft text-loss"
+          )}
+        >
+          {notice.text}
+        </div>
+      )}
+
+      {/* Account grid */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {filteredAccounts.map((acc) => {
+          const d = derived(acc);
+          const pnlTone = d.pnl >= 0 ? "var(--gain)" : "var(--loss)";
+          const ddTone = d.dd > acc.maxDrawdown ? "var(--loss)" : d.dd > acc.maxDrawdown * 0.6 ? "var(--warn)" : "var(--gain)";
+          return (
+            <Card key={acc.id} elevated className="flex flex-col p-5">
+              <div className="mb-4 flex items-start gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-sm font-extrabold text-brand">
+                  {initials(acc.name)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="truncate font-display text-[17px] font-bold leading-tight text-ink">{acc.name}</h3>
+                  <p className="truncate text-xs text-mut">
+                    {acc.broker || "No broker set"} · {acc.accountNumber || "no number"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => toggleStatus(acc.id)}
+                  title={acc.status === "Connected" ? "Click to disconnect" : "Click to connect"}
+                  className={cn(
+                    "flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors",
+                    acc.status === "Connected" ? "bg-gain-soft text-gain hover:bg-gain/25" : "bg-loss-soft text-loss hover:bg-loss/25"
+                  )}
+                >
+                  {acc.status === "Connected" ? <Wifi size={10} /> : <WifiOff size={10} />}
+                  {acc.status === "Connected" ? "Live" : "Off"}
+                </button>
+              </div>
+
+              <div className="mb-3 grid grid-cols-3 gap-2">
+                <div className="rounded-xl border border-edge bg-panel2 p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-mut">Balance</p>
+                  <p className="tnum mt-0.5 font-display text-lg font-bold text-ink">{fmtMoney(d.balance)}</p>
+                </div>
+                <div className="rounded-xl border border-edge bg-panel2 p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-mut">Equity</p>
+                  <p className="tnum mt-0.5 font-display text-lg font-bold text-ink">{fmtMoney(d.equity)}</p>
+                </div>
+                <div className="rounded-xl border border-edge bg-panel2 p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-mut">P&amp;L</p>
+                  <p className="tnum mt-0.5 font-display text-lg font-bold" style={{ color: pnlTone }}>
+                    {d.pnl >= 0 ? "+" : ""}
+                    {fmtMoney(d.pnl)}
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className={cn(
-                  "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                  acc.status === "Connected" ? "bg-gain/15 text-gain" : "bg-loss/15 text-loss"
-                )}>
-                  {acc.status === "Connected" ? <Wifi size={10} className="inline mr-0.5" /> : <WifiOff size={10} className="inline mr-0.5" />}
-                  {acc.status}
-                </span>
-              </div>
-            </div>
 
-            {/* Key Metrics Grid */}
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <div className="p-3 rounded-lg bg-panel2 border border-edge">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-mut">Balance</p>
-                <p className="font-display text-xl font-bold text-ink tnum mt-0.5">{fmtMoney(acc.balance)}</p>
+              <div className="mb-4 grid grid-cols-3 gap-2">
+                <div className="rounded-xl border border-edge bg-panel2 p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-mut">Drawdown</p>
+                  <p className="tnum mt-0.5 font-display text-lg font-bold" style={{ color: ddTone }}>
+                    {d.dd.toFixed(1)}%
+                  </p>
+                </div>
+                <div className="rounded-xl border border-edge bg-panel2 p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-mut">Size</p>
+                  <p className="tnum mt-0.5 font-display text-lg font-bold text-ink">{fmtMoney(acc.size)}</p>
+                </div>
+                <div className="rounded-xl border border-edge bg-panel2 p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-mut">Trades</p>
+                  <p className="tnum mt-0.5 font-display text-lg font-bold text-ink">{acc.trades.length}</p>
+                </div>
               </div>
-              <div className="p-3 rounded-lg bg-panel2 border border-edge">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-mut">Equity</p>
-                <p className="font-display text-xl font-bold text-ink tnum mt-0.5">{fmtMoney(acc.equity)}</p>
-              </div>
-              <div className="p-3 rounded-lg bg-panel2 border border-edge">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-mut">P&L</p>
-                <p className="font-display text-xl font-bold tnum mt-0.5" style={{ color: pnlColor(acc.pnl) }}>
-                  {acc.pnl >= 0 ? "+" : ""}{fmtMoney(acc.pnl)}
-                </p>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <div className="p-3 rounded-lg bg-panel2 border border-edge">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-mut">Drawdown</p>
-                <p className="font-display text-xl font-bold tnum mt-0.5" style={{ color: drawdownColor(acc.drawdown) }}>
-                  {acc.drawdown.toFixed(1)}%
-                </p>
+              <div className="mb-4 space-y-1.5 rounded-xl border border-edge bg-panel2 p-3 text-[13px]">
+                <div className="flex justify-between gap-3">
+                  <span className="text-mut">Type</span>
+                  <span className="font-medium capitalize text-ink">{acc.type.toLowerCase()}</span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-mut">Platform</span>
+                  <span className="truncate font-medium text-ink">{acc.platform || "—"}</span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-mut">Max DD limit</span>
+                  <span className="tnum font-medium text-ink">{acc.maxDrawdown}%</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-edge2">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${acc.maxDrawdown > 0 ? Math.min(100, (d.dd / acc.maxDrawdown) * 100) : 0}%`,
+                      background: ddTone,
+                    }}
+                  />
+                </div>
               </div>
-              <div className="p-3 rounded-lg bg-panel2 border border-edge">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-mut">Account Size</p>
-                <p className="font-display text-xl font-bold text-ink tnum mt-0.5">{fmtMoney(acc.size)}</p>
-              </div>
-              <div className="p-3 rounded-lg bg-panel2 border border-edge">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-mut">Max DD</p>
-                <p className="font-display text-xl font-bold text-mut tnum mt-0.5">{acc.maxDrawdown}%</p>
-              </div>
-            </div>
 
-            {/* Info Row */}
-            <div className="mb-4 p-3 rounded-lg bg-panel2 border border-edge space-y-1.5 text-sm">
-              <div className="flex justify-between">
-                <span className="text-mut">Broker</span>
-                <span className="text-ink font-medium">{acc.broker || "—"}</span>
+              <div className="mt-auto flex items-center gap-2 border-t border-edge pt-3">
+                <button
+                  onClick={() => setDetailId(acc.id)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-sm font-semibold text-mut transition-colors hover:border-brand hover:bg-brand-soft hover:text-brand"
+                >
+                  <Eye size={14} />
+                  <span>Details</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setManageId(acc.id);
+                    setEditForm({ ...acc });
+                  }}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-deep"
+                >
+                  <Settings size={14} />
+                  <span>Manage</span>
+                </button>
               </div>
-              <div className="flex justify-between">
-                <span className="text-mut">Account #</span>
-                <span className="text-ink font-mono tnum">{acc.accountNumber || "—"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-mut">Type</span>
-                <span className="text-ink font-medium capitalize">{acc.type.toLowerCase()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-mut">Platform</span>
-                <span className="text-ink font-medium">{acc.platform || "—"}</span>
-              </div>
-            </div>
+            </Card>
+          );
+        })}
 
-            {/* Actions */}
-            <div className="flex items-center gap-2 pt-3 border-t border-edge">
-              <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-edge bg-panel text-sm font-medium text-mut hover:bg-brand-soft hover:text-brand hover:border-brand transition-colors">
-                <Eye size={14} />
-                <span>View Details</span>
-              </button>
-              <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-brand text-white font-semibold hover:bg-brand-deep transition-colors">
-                <Settings size={14} />
-                <span>Manage</span>
-              </button>
-            </div>
-          </Card>
-        ))}
-
-        {/* Add New Account Card */}
-        <Card elevated className="p-5 border-2 border-dashed border-edge2 flex flex-col items-center justify-center min-h-[320px]">
-          <button onClick={addAccount} className="w-full flex flex-col items-center justify-center gap-3 py-8 px-4 text-center cursor-pointer">
-            <div className="w-16 h-16 rounded-full border-2 border-dashed border-brand flex items-center justify-center">
-              <Plus className="w-8 h-8 text-brand" />
+        <Card elevated className="flex min-h-[320px] flex-col items-center justify-center border-2 border-dashed border-edge2 p-5">
+          <button onClick={addAccount} className="flex w-full cursor-pointer flex-col items-center justify-center gap-3 px-4 py-8 text-center">
+            <div className="grid h-16 w-16 place-items-center rounded-full border-2 border-dashed border-brand">
+              <Plus className="h-8 w-8 text-brand" />
             </div>
             <span className="text-lg font-semibold text-ink">Add Trading Account</span>
-            <span className="text-sm text-mut">Configure broker, account size, and upload trade history</span>
-            <div className="mt-2 px-4 py-2 rounded-lg bg-brand-soft text-brand text-xs font-medium border border-brand/30">
-              Supports: FundedNext, Hola Prime, FTMO, IBKR, Topstep, etc.
-            </div>
+            <span className="text-sm text-mut">Configure broker, size, drawdown limit, then upload its CSV</span>
           </button>
         </Card>
       </div>
 
-      {filteredAccounts.length === 0 && accounts.length > 0 && (
-        <div className="text-center py-12 text-mut">
+      {filteredAccounts.length === 0 && (
+        <div className="py-12 text-center text-mut">
           <p>No accounts match the current filter.</p>
         </div>
+      )}
+
+      {/* Details modal */}
+      {detailAcc && (
+        <AccountDetailsModal
+          acc={detailAcc}
+          onClose={() => setDetailId(null)}
+          onManage={() => {
+            setDetailId(null);
+            setManageId(detailAcc.id);
+            setEditForm({ ...detailAcc });
+          }}
+          onUpload={(f) => handleFileUpload(detailAcc.id, f)}
+          onExport={() => exportAccount(detailAcc.id)}
+          uploading={uploadingId === detailAcc.id}
+        />
+      )}
+
+      {/* Manage modal */}
+      {manageAcc && (
+        <AccountManageModal
+          acc={manageAcc}
+          form={editForm}
+          setForm={setEditForm}
+          uploading={uploadingId === manageAcc.id}
+          onUpload={(f) => handleFileUpload(manageAcc.id, f)}
+          onSample={() => loadSample(manageAcc.id)}
+          onClear={() => clearTrades(manageAcc.id)}
+          onExport={() => exportAccount(manageAcc.id)}
+          onDelete={() => deleteAccount(manageAcc.id)}
+          onToggleStatus={() => toggleStatus(manageAcc.id)}
+          onSave={saveManage}
+          onClose={() => {
+            setManageId(null);
+            setEditForm({});
+          }}
+        />
       )}
     </div>
   );
 }
+
+function ModalShell({ title, sub, onClose, children, wide }: { title: string; sub?: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/55 p-3 backdrop-blur-sm sm:items-center sm:p-6" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className={cn(
+          "max-h-[92vh] w-full overflow-y-auto rounded-2xl border border-edge bg-panel shadow-2xl",
+          wide ? "max-w-3xl" : "max-w-xl"
+        )}
+      >
+        <div className="sticky top-0 flex items-start justify-between gap-4 border-b border-edge bg-panel px-5 py-4">
+          <div>
+            <h2 className="font-display text-lg font-bold text-ink">{title}</h2>
+            {sub && <p className="mt-0.5 text-sm text-mut">{sub}</p>}
+          </div>
+          <button onClick={onClose} className="rounded-lg border border-edge p-1.5 text-mut transition-colors hover:bg-panel2 hover:text-ink" aria-label="Close">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="space-y-4 p-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function AccountDetailsModal({
+  acc,
+  uploading,
+  onClose,
+  onManage,
+  onUpload,
+  onExport,
+}: {
+  acc: AccountConfig;
+  uploading: boolean;
+  onClose: () => void;
+  onManage: () => void;
+  onUpload: (f: File | undefined) => void;
+  onExport: () => void;
+}) {
+  const d = derived(acc);
+  const k = d.k;
+  const bal = balanceSeries(acc.trades, acc.size);
+  const recent = useMemo(() => [...acc.trades].sort((a, b) => b.ts - a.ts).slice(0, 8), [acc]);
+  const ddPct = acc.maxDrawdown > 0 ? Math.min(100, (d.dd / acc.maxDrawdown) * 100) : 0;
+
+  return (
+    <ModalShell title={acc.name} sub={`${acc.broker || "No broker"} · ${acc.accountNumber || "no number"} · ${acc.platform || "no platform"}`} onClose={onClose} wide>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {[
+          { label: "Balance", value: fmtMoney(d.balance), tone: "var(--ink)" },
+          { label: "Equity", value: fmtMoney(d.equity), tone: "var(--ink)" },
+          { label: "Net P&L", value: `${d.pnl >= 0 ? "+" : ""}${fmtMoney(d.pnl)}`, tone: d.pnl >= 0 ? "var(--gain)" : "var(--loss)" },
+          { label: "Win rate", value: `${k.winRate.toFixed(1)}%`, tone: "var(--ink)" },
+          { label: "Profit factor", value: k.pf.toFixed(2), tone: "var(--ink)" },
+          { label: "Trades", value: String(acc.trades.length), tone: "var(--ink)" },
+        ].map((m) => (
+          <div key={m.label} className="rounded-xl border border-edge bg-panel2 p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-mut">{m.label}</p>
+            <p className="tnum mt-0.5 font-display text-lg font-bold" style={{ color: m.tone }}>{m.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-edge bg-panel2 p-3">
+        <div className="flex items-center justify-between text-sm">
+          <span className="font-semibold text-mut">Drawdown usage</span>
+          <span className="tnum font-bold text-ink">{d.dd.toFixed(1)}% of {acc.maxDrawdown}% limit</span>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-edge2">
+          <div className="h-full rounded-full" style={{ width: `${ddPct}%`, background: d.dd > acc.maxDrawdown ? "var(--loss)" : "var(--brand)" }} />
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-bold text-ink">Equity curve</p>
+        {bal.length ? (
+          <EquitySpark points={bal.map((p) => p.balance)} />
+        ) : (
+          <p className="rounded-xl border border-dashed border-edge2 p-4 text-center text-sm text-mut">Upload a CSV to draw this account&apos;s equity curve.</p>
+        )}
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-bold text-ink">Recent trades</p>
+        {recent.length ? (
+          <div className="overflow-hidden rounded-xl border border-edge">
+            <table className="w-full text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-edge bg-panel2 text-[10px] uppercase tracking-wider text-mut">
+                  <th className="px-3 py-2">Date</th>
+                  <th className="px-3 py-2">Symbol</th>
+                  <th className="px-3 py-2">Side</th>
+                  <th className="px-3 py-2 text-right">P&amp;L</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-edge">
+                {recent.map((t) => (
+                  <tr key={t.id}>
+                    <td className="px-3 py-2 text-mut">{t.date}</td>
+                    <td className="px-3 py-2 font-bold text-ink">{t.symbol}</td>
+                    <td className="px-3 py-2 text-mut">{t.side}</td>
+                    <td className="px-3 py-2 text-right font-bold" style={{ color: t.pnl >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                      {t.pnl >= 0 ? "+" : ""}{fmtMoney(t.pnl)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="rounded-xl border border-dashed border-edge2 p-4 text-center text-sm text-mut">No trades yet.</p>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-sm font-semibold text-mut transition-colors hover:border-brand hover:text-brand">
+          <Upload size={14} />
+          {uploading ? "Importing…" : acc.trades.length ? "Replace CSV" : "Upload CSV"}
+          <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => onUpload(e.target.files?.[0])} />
+        </label>
+        <button onClick={onExport} disabled={!acc.trades.length} className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-sm font-semibold text-mut transition-colors hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-50">
+          <Download size={14} />
+          Export
+        </button>
+        <button onClick={onManage} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-deep">
+          <Settings size={14} />
+          Manage
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function AccountManageModal({
+  acc,
+  form,
+  setForm,
+  uploading,
+  onUpload,
+  onSample,
+  onClear,
+  onExport,
+  onDelete,
+  onToggleStatus,
+  onSave,
+  onClose,
+}: {
+  acc: AccountConfig;
+  form: Partial<AccountConfig>;
+  setForm: (f: Partial<AccountConfig>) => void;
+  uploading: boolean;
+  onUpload: (f: File | undefined) => void;
+  onSample: () => void;
+  onClear: () => void;
+  onExport: () => void;
+  onDelete: () => void;
+  onToggleStatus: () => void;
+  onSave: () => void;
+  onClose: () => void;
+}) {
+  const set = (patch: Partial<AccountConfig>) => setForm({ ...form, ...patch });
+  return (
+    <ModalShell title={`Manage ${acc.name}`} sub="Edit details, connection, limits and trade data" onClose={onClose}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-mut">Account name</span>
+          <input value={form.name ?? ""} onChange={(e) => set({ name: e.target.value })} className="w-full rounded-lg border border-edge bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-brand" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-mut">Broker / prop firm</span>
+          <input value={form.broker ?? ""} onChange={(e) => set({ broker: e.target.value })} placeholder="FundedNext" className="w-full rounded-lg border border-edge bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-brand" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-mut">Account number</span>
+          <input value={form.accountNumber ?? ""} onChange={(e) => set({ accountNumber: e.target.value })} placeholder="FN-000000" className="w-full rounded-lg border border-edge bg-panel px-3 py-2 font-mono text-sm text-ink outline-none focus:border-brand" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-mut">Platform</span>
+          <input value={form.platform ?? ""} onChange={(e) => set({ platform: e.target.value })} placeholder="MT5 / DXtrade / TWS" className="w-full rounded-lg border border-edge bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-brand" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-mut">Type</span>
+          <select value={form.type ?? "Personal"} onChange={(e) => set({ type: e.target.value as AccountConfig["type"] })} className="w-full rounded-lg border border-edge bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-brand">
+            <option value="Prop">Prop</option>
+            <option value="Funded">Funded</option>
+            <option value="Personal">Personal</option>
+            <option value="Demo">Demo</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-mut">Status</span>
+          <select value={form.status ?? "Disconnected"} onChange={(e) => set({ status: e.target.value as AccountConfig["status"] })} className="w-full rounded-lg border border-edge bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-brand">
+            <option value="Connected">Connected</option>
+            <option value="Disconnected">Disconnected</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-mut">Account size ($)</span>
+          <input type="number" min={0} value={form.size ?? 0} onChange={(e) => set({ size: Number(e.target.value) || 0 })} className="w-full rounded-lg border border-edge bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-brand" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-mut">Max drawdown (%)</span>
+          <input type="number" min={0} max={100} value={form.maxDrawdown ?? 0} onChange={(e) => set({ maxDrawdown: Number(e.target.value) || 0 })} className="w-full rounded-lg border border-edge bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-brand" />
+        </label>
+      </div>
+
+      <div className="rounded-xl border border-edge bg-panel2 p-3">
+        <p className="text-sm font-bold text-ink">Trade data · {acc.trades.length} trades loaded</p>
+        <p className="mt-0.5 text-xs text-mut">CSV headers: date, symbol, side, strategy, account, session, qty, entry, exit, risk, r, pnl, planned</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-sm font-semibold text-mut transition-colors hover:border-brand hover:text-brand">
+            <Upload size={14} />
+            {uploading ? "Importing…" : acc.trades.length ? "Replace CSV" : "Upload CSV"}
+            <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => onUpload(e.target.files?.[0])} />
+          </label>
+          <button onClick={onSample} className="flex items-center justify-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-sm font-semibold text-mut transition-colors hover:border-brand hover:text-brand">
+            <FileText size={14} />
+            Load sample
+          </button>
+          <button onClick={onExport} disabled={!acc.trades.length} className="flex items-center justify-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-sm font-semibold text-mut transition-colors hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-50">
+            <Download size={14} />
+            Export CSV
+          </button>
+          <button onClick={onClear} disabled={!acc.trades.length} className="flex items-center justify-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-sm font-semibold text-mut transition-colors hover:border-loss hover:text-loss disabled:cursor-not-allowed disabled:opacity-50">
+            <RotateCcw size={14} />
+            Clear trades
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button onClick={onToggleStatus} className="flex items-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-sm font-semibold text-mut transition-colors hover:border-brand hover:text-brand">
+          <Link2 size={14} />
+          {form.status === "Connected" ? "Disconnect" : "Connect"}
+        </button>
+        <button onClick={onDelete} className="flex items-center gap-2 rounded-lg border border-loss/30 bg-loss-soft px-3 py-2 text-sm font-semibold text-loss transition-colors hover:bg-loss/25">
+          <Trash2 size={14} />
+          Delete account
+        </button>
+        <div className="ml-auto flex gap-2">
+          <button onClick={onClose} className="rounded-lg border border-edge bg-panel px-4 py-2 text-sm font-semibold text-mut transition-colors hover:bg-panel2">Cancel</button>
+          <button onClick={onSave} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-deep">Save changes</button>
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
+function EquitySpark({ points }: { points: number[] }) {
+  if (points.length < 2) return null;
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  const span = max - min || 1;
+  const pts = points.map((v, i) => {
+    const x = (i / (points.length - 1)) * 580 + 10;
+    const y = 90 - ((v - min) / span) * 76;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const up = points[points.length - 1] >= points[0];
+  return (
+    <svg viewBox="0 0 600 100" className="h-24 w-full" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="accEqFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={up ? "var(--gain)" : "var(--loss)"} stopOpacity="0.25" />
+          <stop offset="100%" stopColor={up ? "var(--gain)" : "var(--loss)"} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polyline points={`10,95 ${pts.join(" ")} 590,95`} fill="url(#accEqFill)" stroke="none" />
+      <polyline points={pts.join(" ")} fill="none" stroke={up ? "var(--gain)" : "var(--loss)"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
