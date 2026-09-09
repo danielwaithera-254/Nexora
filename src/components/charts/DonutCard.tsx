@@ -1,4 +1,4 @@
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+﻿import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Card, CardHead } from "../ui";
 import { PieChart as PieIcon } from "lucide-react";
 import { fmtPct } from "../../lib/format";
@@ -61,7 +61,7 @@ export default function DonutCard({
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
           <div className="text-center">
-            <p className="font-display text-2xl font-bold text-ink tnum">{fmtPct(winRate, 0)}</p>
+            <p className="font-display text-xl font-bold text-ink tnum">{fmtPct(winRate, 0)}</p>
             <p className="text-[9.5px] font-bold uppercase tracking-wider text-faint">win rate</p>
           </div>
         </div>

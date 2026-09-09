@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { Card, CardHead } from "./ui";
 import { cn } from "../utils/cn";
 import { CheckCircle2, AlertTriangle, Target, TrendingUp, Plus, Trash2, Edit2, Save, X, ChevronDown } from "lucide-react";
@@ -126,7 +126,7 @@ export default function Goals() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink">Goals</h1>
+          <h1 className="font-display text-xl font-bold text-ink">Goals</h1>
           <p className="text-mut mt-0.5">Track your trading objectives and habits</p>
         </div>
         <button onClick={() => { setForm({ title: "", type: "custom", target: 0, current: 0, description: "" }); setShowForm(true); }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-brand text-white font-semibold hover:bg-brand-deep transition-colors">

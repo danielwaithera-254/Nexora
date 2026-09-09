@@ -1,4 +1,4 @@
-import { Flame, Trophy } from "lucide-react";
+﻿import { Flame, Trophy } from "lucide-react";
 import type { Kpis } from "../lib/metrics";
 import { trendPct } from "../lib/metrics";
 import { fmtMoney, fmtNum, fmtPct } from "../lib/format";
@@ -80,7 +80,7 @@ export default function KpiCards({
         <Rail tone={k.pf >= 1.5 ? "gain" : k.pf >= 1 ? "brand" : "loss"} />
         <Label text="Profit Factor" tip="Gross profit ÷ gross loss. Above 1.5 is considered healthy." />
         <div className="mt-2 flex items-center gap-3">
-          <p className="font-display text-2xl font-bold leading-none text-ink tnum">{fmtNum(pf)}</p>
+          <p className="font-display text-xl font-bold leading-none text-ink tnum">{fmtNum(pf)}</p>
           <svg viewBox="0 0 44 44" className="h-11 w-11 -rotate-90">
             <defs>
               <linearGradient id="pfRing" x1="0" y1="0" x2="1" y2="1">
@@ -129,7 +129,7 @@ export default function KpiCards({
             <Flame size={17} className={streakWin ? "animate-pulse" : ""} />
           </span>
           <div>
-            <p className="font-display text-2xl font-bold leading-none text-ink tnum">
+            <p className="font-display text-xl font-bold leading-none text-ink tnum">
               {k.streak.len}
               <span className={cn("ml-1 text-sm", streakWin ? "text-gain" : "text-loss")}>
                 {k.streak.type === "none" ? "—" : streakWin ? "W" : "L"}
@@ -146,7 +146,7 @@ export default function KpiCards({
       <Card hover className="relative p-4">
         <Rail tone="brand" />
         <Label text="Trades" tip="Total closed executions in the selected view." />
-        <p className="mt-2 font-display text-2xl font-bold leading-none text-ink tnum">{Math.round(cnt)}</p>
+        <p className="mt-2 font-display text-xl font-bold leading-none text-ink tnum">{Math.round(cnt)}</p>
         <div className="mt-2.5 flex items-center gap-1.5">
           <span className="rounded-md bg-gain-soft px-1.5 py-0.5 text-[10px] font-bold text-gain tnum">{k.wins}W</span>
           <span className="rounded-md bg-loss-soft px-1.5 py-0.5 text-[10px] font-bold text-loss tnum">{k.losses}L</span>
@@ -161,7 +161,7 @@ export default function KpiCards({
         <Rail tone="brand" />
         <Label text="Win Rate" tip="Percentage of closed trades that finished in profit." />
         <div className="mt-2 flex items-end justify-between">
-          <p className="font-display text-2xl font-bold leading-none text-ink tnum">{fmtPct(wr)}</p>
+          <p className="font-display text-xl font-bold leading-none text-ink tnum">{fmtPct(wr)}</p>
           <Delta value={prev ? trendPct(k.winRate, prev.winRate) : null} />
         </div>
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-panel2">
@@ -177,7 +177,7 @@ export default function KpiCards({
         <Rail tone={k.wlRatio >= 1.5 ? "gain" : "brand"} />
         <Label text="Avg Risk:Reward" tip="Average win R compared to average loss R. Higher is better." />
         <div className="mt-2 flex items-center gap-1.5">
-          <p className="font-display text-2xl font-bold leading-none text-ink tnum">{fmtNum(ratio, 1)}×</p>
+          <p className="font-display text-xl font-bold leading-none text-ink tnum">{fmtNum(ratio, 1)}×</p>
           {k.wlRatio >= 1.5 && <Trophy size={14} className="text-brand" />}
         </div>
         <div className="mt-2.5 space-y-1">

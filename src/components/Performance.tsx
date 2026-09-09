@@ -39,6 +39,7 @@ export default function Performance({ trades }: PerformanceProps) {
   const monthly = useMemo(() => monthlySeries(filteredTrades), [filteredTrades]);
   const weekly = useMemo(() => weekdaySeries(filteredTrades), [filteredTrades]);
   const daily = useMemo(() => dailyMap(filteredTrades), [filteredTrades]);
+  const dailyArray = useMemo(() => [...daily.entries()].map(([date, v]) => ({ date, ...v })), [daily]);
 
   const bestDay = useMemo(() => {
     const byDay = new Map<string, number>();
@@ -86,10 +87,10 @@ export default function Performance({ trades }: PerformanceProps) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink">Performance</h1>
-          <p className="text-mut mt-0.5">Your trading performance report</p>
+          <h1 className="font-display text-xl font-bold leading-tight text-ink">Performance</h1>
+          <p className="text-xs text-mut">Your trading performance report — synced from Accounts</p>
         </div>
         <div className="flex bg-panel2 rounded-xl p-1">
           {["week", "month", "quarter", "year", "all"].map((p) => (
@@ -106,30 +107,30 @@ export default function Performance({ trades }: PerformanceProps) {
         </div>
       </div>
 
-      {/* Summary Cards with Hover Effects */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      {/* Summary Cards — compact, hover shows date breakdown */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
         {[
-          { label: "Starting Balance", value: 10000, key: "startBal", pos: true },
-          { label: "Current Balance", value: 10000 + k.net, key: "curBal", pos: k.net >= 0 },
-          { label: "Net Profit", value: k.net, key: "net", pos: k.net >= 0 },
-          { label: "Return %", value: ((k.net / 10000) * 100).toFixed(1) + "%", key: "ret", pos: k.net >= 0 },
-          { label: "Best Day", value: bestDay.pnl >= 0 ? "+" + bestDay.pnl.toLocaleString() : bestDay.pnl.toLocaleString(), key: "bestDay", pos: bestDay.pnl >= 0 },
-          { label: "Worst Day", value: worstDay.pnl.toLocaleString(), key: "worstDay", pos: false },
-          { label: "Current Streak", value: currentStreak + " days", key: "streak", pos: true },
+          { label: "Starting Balance", value: fmtMoney(10000), key: "startBal", pos: true },
+          { label: "Current Balance", value: fmtMoney(10000 + k.net), key: "curBal", pos: k.net >= 0 },
+          { label: "Net Profit", value: fmtMoney(k.net, {sign:true}), key: "net", pos: k.net >= 0 },
+          { label: "Return", value: ((k.net / 10000) * 100).toFixed(1) + "%", key: "ret", pos: k.net >= 0 },
+          { label: "Best Day", value: fmtMoney(bestDay.pnl, {sign:true}), key: "bestDay", pos: bestDay.pnl >= 0 },
+          { label: "Worst Day", value: fmtMoney(worstDay.pnl), key: "worstDay", pos: false },
+          { label: "Streak", value: currentStreak + "d " + (currentStreak>0?"🔥":""), key: "streak", pos: true },
         ].map((m) => (
-          <MetricCard key={m.key} metric={m} dailyData={dailyMap(filteredTrades)} onHover={setHoveredDate} hoveredDate={hoveredDate} />
+          <MetricCard key={m.key} metric={{...m, value: String(m.value)}} dailyData={daily} onHover={setHoveredDate} hoveredDate={hoveredDate} />
         ))}
       </div>
 
       {hoveredDate && (
-        <HoverTooltip date={hoveredDate} data={dailyMap(filteredTrades).find(d => d.date === hoveredDate)} dailyData={dailyMap(filteredTrades)} />
+        <HoverTooltip date={hoveredDate} data={daily.get(hoveredDate) ?? null} dailyData={dailyArray} />
       )}
 
-      {/* Charts - Full Width Big Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="h-[400px]">
-          <CardHead title="Cumulative Returns" info="Equity curve over selected period" />
-          <div className="h-[320px] px-2">
+      {/* Charts — stacked: big cards alone */}
+      <div className="space-y-6">
+        <Card className="h-[360px]">
+          <CardHead title="Cumulative Returns" info="Equity curve over selected period — hover for day detail" />
+          <div className="h-[300px] px-2">
             <svg viewBox="0 0 600 250" className="w-full h-full" preserveAspectRatio="none">
               <defs>
                 <linearGradient id="perfFill" x1="0" y1="0" x2="0" y2="1">
@@ -144,9 +145,9 @@ export default function Performance({ trades }: PerformanceProps) {
           </div>
         </Card>
 
-        <Card className="h-[400px]">
-          <CardHead title="Daily P&L Distribution" info="Histogram of daily P&L" />
-          <div className="h-[320px] px-2">
+        <Card className="h-[360px]">
+          <CardHead title="Daily P&L Distribution" info="Histogram of daily P&L — green wins, red losses" />
+          <div className="h-[300px] px-2">
             <svg viewBox="0 0 500 250" className="w-full h-full" preserveAspectRatio="none">
               {[-3, -2, -1, -0.5, 0, 0.5, 1, 1.5, 2, 3].map((r, i) => (
                 <rect key={r} x={60 + i * 35} y={200 - Math.max(10, 10 + Math.random() * 80)} width={25} height={Math.max(10, 10 + Math.random() * 80)} fill={r < 0 ? "var(--loss)" : "var(--gain)"} rx="2" opacity={0.7} />
@@ -175,8 +176,8 @@ export default function Performance({ trades }: PerformanceProps) {
 }
 
 interface MetricCardProps {
-  metric: { label: string; key: string; value: number; pos: boolean };
-  dailyData: { date: string; pnl: number; trades: number; wins: number }[];
+  metric: { label: string; key: string; value: string; pos: boolean };
+  dailyData: Map<string, { pnl: number; count: number; wins: number }>;
   onHover: (date: string | null) => void;
   hoveredDate: string | null;
 }
@@ -184,35 +185,39 @@ interface MetricCardProps {
 function MetricCard({ metric, dailyData, onHover, hoveredDate }: MetricCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const isActive = hoveredDate !== null;
-  const pos = metric.value >= 0;
+  const pos = metric.pos;
 
   return (
     <div 
       className={cn(
-        "p-4 rounded-xl bg-panel border border-edge transition-all duration-200",
-        "hover:border-brand/50 hover:shadow-[0_0_20px_rgba(139,92,246,0.15)]",
-        "relative overflow-visible cursor-pointer"
+        "p-3 rounded-xl bg-panel border border-edge transition-all duration-200",
+        "hover:border-brand/40 hover:shadow-[0_8px_24px_-16px_rgba(124,58,237,0.35)] hover:-translate-y-0.5",
+        "relative overflow-hidden cursor-pointer"
       )}
       onMouseEnter={() => { setIsHovered(true); onHover(null); }}
       onMouseLeave={() => { setIsHovered(false); if (!hoveredDate) onHover(null); }}
     >
-      <p className="text-[10px] font-bold uppercase tracking-wider text-mut">{metric.label}</p>
-      <p className="mt-1 font-display text-2xl font-bold tnum" style={{ color: `var(--${pos ? "gain" : "loss"})` }}>
+      <p className="text-[9px] font-bold uppercase tracking-wider text-mut leading-none">{metric.label}</p>
+      <p className="mt-1 font-display text-lg font-bold leading-tight tnum truncate" style={{ color: `var(--${pos ? "gain" : "loss"})` }}>
         {metric.value}
       </p>
       
-      {isHovered && !hoveredDate && (
-        <MiniSparkline dailyData={dailyMap([])} color={pos ? "gain" : "loss"} />
+      {isHovered && !hoveredDate && daily.size>0 && (
+        <MiniSparkline dailyData={daily} color={pos ? "gain" : "loss"} />
       )}
     </div>
   );
 }
 
-function MiniSparkline({ dailyData, color }: { dailyData: any; color: string }) {
+function MiniSparkline({ dailyData, color }: { dailyData: Map<string, { pnl: number; count: number; wins: number }>; color: string }) {
+  const vals = [...dailyData.values()].map(v=>v.pnl).slice(-12);
+  if (!vals.length) return null;
+  const min=Math.min(...vals), max=Math.max(...vals), span=(max-min)||1;
+  const d=vals.map((v,i)=>{ const x=(i/Math.max(1,vals.length-1))*100; const y=50 - ((v-min)/span)*30; return `${i===0?"M":"L"} ${x.toFixed(1)} ${y.toFixed(1)}`;}).join(" ");
   return (
-    <div className="absolute bottom-0 left-0 right-0 h-12 pointer-events-none">
-      <svg viewBox="0 0 100 100" className="w-full h-full" preserveAspectRatio="none">
-        <path d="M 0 50 Q 25 30 50 40 T 100 20" fill="none" stroke={`var(--${color})`} strokeWidth="2" strokeLinecap="round" opacity="0.8" />
+    <div className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none opacity-60 group-hover:opacity-100">
+      <svg viewBox="0 0 100 60" className="w-full h-full" preserveAspectRatio="none">
+        <path d={d} fill="none" stroke={`var(--${color})`} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     </div>
   );

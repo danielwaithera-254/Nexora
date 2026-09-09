@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
 import { Card, CardHead } from "./ui";
 import { cn } from "../utils/cn";
 import { fmtMoney } from "../lib/format";
@@ -65,7 +65,7 @@ export default function Analytics({ trades }: AnalyticsProps) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink">Analytics</h1>
+          <h1 className="font-display text-xl font-bold text-ink">Analytics</h1>
           <p className="text-sm text-mut">Deep dive into your trading edge — hover any metric for a date-specific breakdown.</p>
         </div>
         <div className="flex items-center gap-2 rounded-xl bg-panel2 p-1">
@@ -137,8 +137,8 @@ function HoverKpi({ label, value, tone, sub, daily, hoverValue, hoverDate, onHov
       className={cn("group relative rounded-2xl border bg-panel p-4 transition-all", open ? "border-brand/40 shadow-[0_12px_32px_-16px_rgba(124,58,237,0.35)] -translate-y-0.5" : "border-edge shadow-[var(--shadow)]")}
     >
       <p className="text-[10px] font-extrabold uppercase tracking-wider text-mut">{label}</p>
-      <p className="mt-1 font-display text-2xl font-bold tnum" style={{color:`var(--${tone})`}}>{hoverValue ?? value}</p>
-      {sub && <p className="mt-1 text-[11px] font-medium text-faint">{hoverValue ? `now · ${sub}` : sub}</p>}
+      <p className="mt-1 font-display text-lg font-bold tnum leading-tight" style={{color:`var(--${tone})`}}>{hoverValue ?? value}</p>
+      {sub && <p className="mt-1 text-[11px] font-medium leading-tight text-faint truncate">{hoverValue ? `now · ${sub}` : sub}</p>}
       {open && days.length>0 && (
         <div className="absolute inset-x-0 top-full z-10 mt-2 hidden group-hover:block">
           <div className="rounded-xl border border-edge bg-panel p-2 shadow-xl">
@@ -242,10 +242,11 @@ function DistributionCard({ daily, onHover, hoverDate }: { daily: Map<string,{pn
 }
 
 function CoolMetric({ icon, label, value, sub, tone, spark, hoverDate, onHover }: { icon:string; label:string; value:string; sub:string; tone:string; spark:number[]; hoverDate:string|null; onHover:(d:string|null)=>void }) {
-  const max = Math.max(...spark.map(v=>Math.abs(v)), 1);
+  if (!spark.length) return null;
+  const min = Math.min(...spark), max = Math.max(...spark), span = (max - min) || 1;
   const path = spark.map((v,i)=> {
     const x=(i/Math.max(1,spark.length-1))*100;
-    const y=24 - ((v+max)/(max*2))*18;
+    const y=20 - ((v - min)/span)*16;
     return `${i===0?"M":"L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
   }).join(" ");
   return (

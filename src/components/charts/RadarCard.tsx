@@ -45,7 +45,7 @@ export default function RadarCard({ scores }: { scores: { overall: number; axes:
       <div className="mt-auto border-t border-edge2 px-5 py-3.5">
         <div className="flex items-baseline justify-between">
           <span className="text-[10px] font-extrabold uppercase tracking-wider text-mut">Nexora Score</span>
-          <span className="font-display text-2xl font-bold tnum" style={{ color: tone }}>
+          <span className="font-display text-xl font-bold tnum" style={{ color: tone }}>
             {scores.overall}
           </span>
         </div>

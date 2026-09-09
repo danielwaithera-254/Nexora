@@ -174,7 +174,7 @@ export default function Strategies({ trades }: StrategiesProps) {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink">Strategies</h1>
+          <h1 className="font-display text-xl font-bold text-ink">Strategies</h1>
           <p className="text-mut mt-0.5">Track which setups actually work for you</p>
         </div>
       </div>
@@ -190,7 +190,7 @@ export default function Strategies({ trades }: StrategiesProps) {
             <m.icon className="w-6 h-6 text-brand" />
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-mut">{m.label}</p>
-              <p className="mt-0.5 font-display text-2xl font-bold tnum" style={{ color: m.pos === false ? "var(--loss)" : "var(--gain)" }}>
+              <p className="mt-0.5 font-display text-xl font-bold tnum" style={{ color: m.pos === false ? "var(--loss)" : "var(--gain)" }}>
                 {m.pos === false ? "" : m.pos === true ? "+" : ""}{typeof m.value === "number" ? m.value.toLocaleString() : m.value}
               </p>
             </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { Card, CardHead } from "./ui";
 import { cn } from "../utils/cn";
 import { Save, User, Moon, Sun, ShieldCheck, Lock, Download, Upload, KeyRound, CheckCircle2, AlertTriangle, Bell, Palette, Database, Globe, Layers } from "lucide-react";
@@ -115,7 +115,7 @@ export default function Settings({ dark = false, onToggleDark }: SettingsProps) 
           <Settings className="w-6 h-6 text-brand" />
         </div>
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink">Settings</h1>
+          <h1 className="font-display text-xl font-bold text-ink">Settings</h1>
           <p className="text-mut mt-0.5">Configure your trading journal preferences</p>
         </div>
       </div>

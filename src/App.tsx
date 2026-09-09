@@ -44,6 +44,8 @@ import {
   type Filters,
 } from "./lib/metrics";
 import { cn } from "./utils/cn";
+import { vaultGet, vaultSet } from "./lib/vault";
+import type { AccountConfig } from "./components/Accounts";
 
 type PageId =
   | "dashboard"
@@ -63,7 +65,27 @@ interface Toast {
 }
 
 export default function App() {
-  const [trades, setTrades] = useState<Trade[]>(() => generateTrades());
+  const [accounts, setAccounts] = useState<AccountConfig[]>(() => {
+    try {
+      const v = vaultGet<AccountConfig[]>("nexora-accounts", []);
+      return v && v.length ? v : [];
+    } catch { return []; }
+  });
+  const [tradesRaw, setTradesRaw] = useState<Trade[]>(() => generateTrades());
+  // unified source: accounts vault is source of truth — all tabs read from it
+  const trades = useMemo(() => {
+    let synced: string[] = [];
+    try { synced = vaultGet<string[]>("nexora-synced-accounts", []); } catch {}
+    const pool = synced.length > 1 ? accounts.filter(a => synced.includes(a.id)) : accounts;
+    const flat = pool.flatMap(a => a.trades.map(t => ({ ...t, account: a.name })));
+    if (flat.length) return flat;
+    // no account trades yet — fall back to generated/demo trades so dashboard isn't empty
+    return tradesRaw;
+  }, [accounts, tradesRaw]);
+  const setTrades: React.Dispatch<React.SetStateAction<Trade[]>> = (val) => {
+    const next = typeof val === "function" ? (val as (p: Trade[])=>Trade[])(tradesRaw) : val;
+    setTradesRaw(next);
+  };
   const [filters, setFilters] = useState<Filters>({ range: "90D", strategy: "All", account: "All" });
   const [dark, setDark] = useState(() => localStorage.getItem("nexora-dark") === "1");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -91,6 +113,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("nexora-collapsed", sidebarCollapsed ? "1" : "0");
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    try { vaultSet("nexora-accounts", accounts); } catch {}
+  }, [accounts]);
 
   const showToast = (msg: string, tone: Toast["tone"] = "brand") => {
     window.clearTimeout(toastTimer.current);
@@ -123,7 +149,23 @@ export default function App() {
     reader.onload = () => {
       const parsed = parseTradesCSV(String(reader.result ?? ""));
       if (parsed.length) {
-        setTrades((t) => [...t, ...parsed]);
+        // if accounts have data, distribute by account field
+        if (accounts.length && accounts.some(a=>a.trades.length>0 || accounts.flatMap(a=>a.trades).length>0)) {
+          // group parsed by account
+          const byAcc = new Map<string, Trade[]>();
+          parsed.forEach(t=> { const key=t.account || accounts[0]?.name || "Main"; const arr=byAcc.get(key) || []; arr.push(t); byAcc.set(key, arr); });
+          setAccounts(prev=>{
+            let next=[...prev];
+            byAcc.forEach((list, accName)=>{
+              const idx=next.findIndex(a=>a.name===accName);
+              if(idx>=0) next[idx]={...next[idx], trades:[...next[idx].trades, ...list], updatedAt:Date.now()};
+              else next.push({ id:`acc-${Date.now()}-${accName}`, name:accName, broker:"", accountNumber:"", type:"Personal", size:10000, maxDrawdown:10, platform:"", trades:list, createdAt:Date.now(), updatedAt:Date.now()});
+            });
+            return next;
+          });
+        } else {
+          setTradesRaw((t) => [...t, ...parsed]);
+        }
         showToast(`Imported ${parsed.length} trades from ${file.name}`, "gain");
       } else {
         showToast("No valid rows found — expected headers: date, symbol, side, pnl…", "loss");
@@ -230,7 +272,7 @@ export default function App() {
           </>
         );
       case "accounts":
-        return <Reveal><Accounts /></Reveal>;
+        return <Reveal><Accounts externalAccounts={accounts} onAccountsChange={setAccounts} /></Reveal>;
       case "trades":
         return <Reveal><Trades trades={current} filters={filters} onFiltersChange={setFilters} onImport={() => fileRef.current?.click()} /></Reveal>;
       case "analytics":
