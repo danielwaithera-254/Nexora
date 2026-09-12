@@ -242,7 +242,14 @@ function DistributionCard({ daily, onHover, hoverDate }: { daily: Map<string,{pn
 }
 
 function CoolMetric({ icon, label, value, sub, tone, spark, hoverDate, onHover }: { icon:string; label:string; value:string; sub:string; tone:string; spark:number[]; hoverDate:string|null; onHover:(d:string|null)=>void }) {
-  if (!spark.length) return null;
+  const [open, setOpen] = useState(false);
+  if (!spark.length) return (
+    <div className="rounded-2xl border border-edge bg-panel p-4">
+      <p className="text-[10px] font-extrabold uppercase tracking-wider text-mut">{label}</p>
+      <p className="mt-1 font-display text-xl font-bold tnum" style={{color:`var(--${tone})`}}>{value}</p>
+      <p className="mt-1 text-[11px] text-faint">{sub}</p>
+    </div>
+  );
   const min = Math.min(...spark), max = Math.max(...spark), span = (max - min) || 1;
   const path = spark.map((v,i)=> {
     const x=(i/Math.max(1,spark.length-1))*100;
@@ -250,19 +257,20 @@ function CoolMetric({ icon, label, value, sub, tone, spark, hoverDate, onHover }
     return `${i===0?"M":"L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
   }).join(" ");
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-edge bg-panel p-4 transition-all hover:-translate-y-1 hover:border-brand/30 hover:shadow-[0_12px_32px_-16px_rgba(124,58,237,0.35)]">
+    <div onMouseEnter={()=>setOpen(true)} onMouseLeave={()=>{setOpen(false); onHover(null);}} className={cn("group relative overflow-hidden rounded-2xl border bg-panel p-4 transition-all", open?"border-brand/40 shadow-[0_12px_32px_-16px_rgba(124,58,237,0.35)] -translate-y-0.5":"border-edge")}>
       <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-[radial-gradient(circle,var(--brand-soft),transparent_70%)] opacity-60" />
       <div className="relative flex items-start justify-between">
-        <div>
+        <div className="min-w-0">
           <p className="text-[10px] font-extrabold uppercase tracking-wider text-mut">{label}</p>
-          <p className="mt-1 font-display text-xl font-bold tnum" style={{color:`var(--${tone})`}}>{value}</p>
-          <p className="mt-1 text-[11px] font-medium text-faint">{sub}</p>
+          <p className="mt-1 truncate font-display text-lg font-bold tnum" style={{color:`var(--${tone})`}}>{value}</p>
+          <p className="mt-1 truncate text-[11px] font-medium text-faint">{sub}</p>
         </div>
-        <span className="grid h-8 w-8 place-items-center rounded-xl bg-brand-soft text-brand">{icon}</span>
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand">{icon}</span>
       </div>
       <svg viewBox="0 0 100 24" className="mt-3 h-8 w-full" preserveAspectRatio="none">
         <path d={path} fill="none" stroke={`var(--${tone})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" opacity={0.9} />
       </svg>
+      {open && <div className="absolute inset-x-2 bottom-2 hidden h-1 rounded-full bg-brand/20 group-hover:block"><div className="h-full w-1/3 rounded-full bg-brand/60" /></div>}
     </div>
   );
 }
