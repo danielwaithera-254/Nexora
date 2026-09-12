@@ -119,7 +119,18 @@ export default function App() {
   const prevK = useMemo(() => (previous.length ? computeKpis(previous) : null), [previous]);
   const spark = useMemo(() => sparkDaily(current), [current]);
   const cum = useMemo(() => cumSeries(current), [current]);
-  const bal = useMemo(() => balanceSeries(current), [current]);
+  const startCapital = useMemo(() => {
+    if (!accounts.length) return 25000;
+    if (filters.account !== "All") {
+      const acc = accounts.find(a=>a.name===filters.account);
+      return acc?.size ?? 25000;
+    }
+    const names = [...new Set(current.map(t=>t.account))];
+    const pool = names.length ? accounts.filter(a=> names.includes(a.name)) : accounts;
+    const sum = pool.reduce((s,a)=>s+a.size,0);
+    return sum || 25000;
+  }, [accounts, current, filters.account]);
+  const bal = useMemo(() => balanceSeries(current, startCapital), [current, startCapital]);
   const wd = useMemo(() => weekdaySeries(current), [current]);
   const donut = useMemo(() => donutData(k), [k]);
   const scores = useMemo(() => radarScores(k), [k]);
@@ -197,14 +208,46 @@ export default function App() {
   };
 
   const handleSample = () => {
-    const blob = new Blob([sampleCSV()], { type: "text/csv" });
+    const csv = sampleCSV();
+    // also seed it into Accounts so all tabs get real data immediately
+    const parsed = parseTradesCSV(csv);
+    if (parsed.length) {
+      if (accounts.length === 0) {
+        setAccounts([{
+          id: `acc-sample-${Date.now()}`,
+          name: parsed[0]?.account || "Sample Account",
+          broker: "Demo",
+          accountNumber: "DEMO-001",
+          type: "Demo",
+          size: 10000,
+          maxDrawdown: 10,
+          platform: "Demo",
+          trades: parsed,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        }]);
+      } else {
+        // add to first account that matches parsed account or first account
+        const targetName = parsed[0]?.account || accounts[0].name;
+        setAccounts(prev=>{
+          const idx = prev.findIndex(a=>a.name===targetName);
+          if (idx>=0) {
+            const next=[...prev];
+            next[idx]={...next[idx], trades:[...next[idx].trades, ...parsed.map(p=> ({...p, account: next[idx].name}))], updatedAt:Date.now()};
+            return next;
+          }
+          return [...prev, { id:`acc-${Date.now()}`, name: targetName, broker:"", accountNumber:"", type:"Personal", size:10000, maxDrawdown:10, platform:"", trades: parsed, createdAt:Date.now(), updatedAt:Date.now()}];
+        });
+      }
+      showToast(`Seeded ${parsed.length} sample trades into Accounts — all tabs now show real data`, "gain");
+    }
+    const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = "nexora-sample.csv";
     a.click();
     URL.revokeObjectURL(url);
-    showToast("Sample CSV downloaded — re-import it via “Import” to see it merge", "brand");
   };
 
   const handleNavigate = (id: PageId) => {
