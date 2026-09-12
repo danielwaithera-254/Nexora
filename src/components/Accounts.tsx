@@ -318,6 +318,7 @@ function ModalShell({ title, sub, onClose, children, wide }: { title: string; su
 function AccountDetailsModal({ acc, uploading, onClose, onManage, onUpload, onExport }: { acc: AccountConfig; uploading: boolean; onClose: () => void; onManage: () => void; onUpload: (f: File|undefined)=>void; onExport: ()=>void; }) {
   const d=derived(acc); const k=d.k; const bal=balanceSeries(acc.trades, acc.size); const recent=[...acc.trades].sort((a,b)=>b.ts-a.ts).slice(0,6);
   const ddPct=acc.maxDrawdown>0?Math.min(100,(d.dd/acc.maxDrawdown)*100):0;
+  const inputRef = useRef<HTMLInputElement>(null);
   return (
     <ModalShell title={acc.name} sub={`${acc.broker||"No broker"} · ${acc.accountNumber||"no number"} · ${acc.platform||"no platform"}`} onClose={onClose} wide>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -357,18 +358,21 @@ function AccountDetailsModal({ acc, uploading, onClose, onManage, onUpload, onEx
         ) : <p className="rounded-xl border border-dashed border-edge2 p-3 text-center text-xs text-mut">No trades yet.</p>}
       </div>
       <div className="flex flex-wrap gap-2">
-        <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-xs font-semibold text-mut hover:border-brand hover:text-brand">
-          <Upload size={12} />{uploading?"Importing…":acc.trades.length?"Replace CSV":"Upload CSV"}<input type="file" accept=".csv,text/csv" className="hidden" onChange={e=>onUpload(e.target.files?.[0])} />
-        </label>
+        <input ref={inputRef} type="file" accept=".csv,text/csv,.txt" className="hidden" onChange={e=>{ onUpload(e.target.files?.[0]); e.currentTarget.value=""; }} />
+        <button onClick={()=> inputRef.current?.click()} disabled={uploading} className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-xs font-semibold text-mut hover:border-brand hover:text-brand disabled:opacity-50">
+          <Upload size={12} />{uploading?"Importing…":acc.trades.length?"Replace CSV":"Upload CSV"}
+        </button>
         <button onClick={onExport} disabled={!acc.trades.length} className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-xs font-semibold text-mut hover:border-brand hover:text-brand disabled:opacity-50"><Download size={12} />Export</button>
         <button onClick={onManage} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white hover:bg-brand-deep"><Settings size={12} />Manage</button>
       </div>
+      <p className="text-center text-[11px] text-mut">Supports MT5 History Report (Positions) &amp; <code>date,symbol,side,pnl</code> CSV</p>
     </ModalShell>
   );
 }
 
 function AccountManageModal({ acc, form, setForm, uploading, onUpload, onSample, onClear, onExport, onDelete, onSave, onClose }: { acc: AccountConfig; form: Partial<AccountConfig>; setForm: (f: Partial<AccountConfig>)=>void; uploading: boolean; onUpload: (f: File|undefined)=>void; onSample: ()=>void; onClear: ()=>void; onExport: ()=>void; onDelete: ()=>void; onSave: ()=>void; onClose: ()=>void; }) {
   const set = (patch: Partial<AccountConfig>) => setForm({ ...form, ...patch });
+  const inputRef = useRef<HTMLInputElement>(null);
   return (
     <ModalShell title={`Manage ${acc.name}`} sub="Edit details, limits and trade data" onClose={onClose}>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -382,11 +386,12 @@ function AccountManageModal({ acc, form, setForm, uploading, onUpload, onSample,
       </div>
       <div className="rounded-xl border border-edge bg-panel2 p-3">
         <p className="text-xs font-bold text-ink">Trade data · {acc.trades.length} trades loaded</p>
-        <p className="mt-0.5 text-[11px] text-mut">CSV headers: date, symbol, side, strategy, account, session, qty, entry, exit, risk, r, pnl, planned</p>
+        <p className="mt-0.5 text-[11px] text-mut">Supports MT5 History Report (Positions) &amp; <code>date,symbol,side,pnl</code> CSV. After upload every tab (Dashboard, Analytics…) recalculates from this account.</p>
+        <input ref={inputRef} type="file" accept=".csv,text/csv,.txt" className="hidden" onChange={e=>{ onUpload(e.target.files?.[0]); e.currentTarget.value=""; }} />
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-xs font-semibold text-mut hover:border-brand hover:text-brand">
-            <Upload size={12} />{uploading?"Importing…":acc.trades.length?"Replace CSV":"Upload CSV"}<input type="file" accept=".csv,text/csv" className="hidden" onChange={e=>onUpload(e.target.files?.[0])} />
-          </label>
+          <button onClick={()=> inputRef.current?.click()} disabled={uploading} className="flex items-center justify-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-xs font-semibold text-mut hover:border-brand hover:text-brand disabled:opacity-50">
+            <Upload size={12} />{uploading?"Importing…":acc.trades.length?"Replace CSV":"Upload CSV"}
+          </button>
           <button onClick={onSample} className="flex items-center justify-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-xs font-semibold text-mut hover:border-brand hover:text-brand"><FileText size={12} />Load sample</button>
           <button onClick={onExport} disabled={!acc.trades.length} className="flex items-center justify-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-xs font-semibold text-mut hover:border-brand hover:text-brand disabled:opacity-50"><Download size={12} />Export CSV</button>
           <button onClick={onClear} disabled={!acc.trades.length} className="flex items-center justify-center gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-xs font-semibold text-mut hover:border-loss hover:text-loss disabled:opacity-50"><RotateCcw size={12} />Clear trades</button>
