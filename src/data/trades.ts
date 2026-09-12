@@ -132,6 +132,106 @@ export function generateTrades(): Trade[] {
 /* ---------- CSV import / export (matches a Python backtest/journal export) ---------- */
 
 export function parseTradesCSV(text: string): Trade[] {
+  // ---------- MT5 / Trade History Report detection ----------
+  // MT5 exports have a header like "Trade History Report", "Positions" section with
+  // columns: Time,Position,Symbol,Type,Volume,Price,S / L,T / P,Time,Price,Commission,Swap,Profit
+  const rawLines = text.split(/\r?\n/);
+  const isMT5 = /Positions/i.test(text) && /Profit/i.test(text) && /Time\s*,\s*Position/i.test(text);
+  if (isMT5) {
+    // try to extract account label from header like: Account: 127447 (USD, HolaPrime-Server1, demo)
+    let reportAccount = "";
+    for (const l of rawLines.slice(0, 15)) {
+      const m = l.match(/Account:\s*,*"?\s*([^,"]+)/i);
+      if (m) { reportAccount = m[1].trim().replace(/\(.*/, "").trim(); break; }
+      const m2 = l.match(/Name:\s*,*([^,]+)/i);
+      if (m2 && !reportAccount) reportAccount = m2[1].trim().substring(0, 30);
+    }
+    if (!reportAccount) reportAccount = "MT5 Import";
+
+    // find header row index
+    let headerIdx = -1;
+    for (let i = 0; i < rawLines.length; i++) {
+      if (/Time\s*,\s*Position\s*,\s*Symbol/i.test(rawLines[i]) && /Profit/i.test(rawLines[i])) { headerIdx = i; break; }
+    }
+    if (headerIdx >= 0) {
+      const out: Trade[] = [];
+      const cleanNum = (s: string) => {
+        if (!s) return 0;
+        const t = s.replace(/[\s\u00A0]/g, "").replace(/,/g, "");
+        const n = parseFloat(t);
+        return isNaN(n) ? 0 : n;
+      };
+      const toIsoDate = (raw: string) => {
+        const datePart = raw.trim().split(" ")[0]; // "2026.07.29"
+        if (!datePart) return "";
+        const isoDate = datePart.replace(/\./g, "-");
+        // validate yyyy-mm-dd
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return "";
+        return isoDate;
+      };
+      const toTs = (isoDate: string) => {
+        const d = new Date(isoDate + "T12:00:00");
+        return isNaN(d.getTime()) ? Date.now() : d.getTime();
+      };
+      for (let i = headerIdx + 1; i < rawLines.length; i++) {
+        const line = rawLines[i];
+        if (!line.trim()) continue;
+        if (/^(Orders|Deals|Results|Balance|Credit|Floating|Equity)\b/i.test(line.trim())) break;
+        // split by comma — Positions rows have 13 cols
+        const cols = line.split(",").map(s => s.trim());
+        if (cols.length < 10) continue;
+        const timeRaw = cols[0];
+        const symbolRaw = cols[2];
+        const typeRaw = cols[3];
+        const volumeRaw = cols[4];
+        const priceOpenRaw = cols[5];
+        const priceCloseRaw = cols[9];
+        const commRaw = cols[10];
+        const swapRaw = cols[11];
+        const profitRaw = cols[12];
+        if (!timeRaw || !symbolRaw || !typeRaw) continue;
+        // skip header repeats or non-trade rows
+        if (/^Time$/i.test(timeRaw) || /^Position$/i.test(cols[1])) continue;
+        const isoDate = toIsoDate(timeRaw);
+        if (!isoDate) continue;
+        const symbol = symbolRaw.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+        if (!symbol || symbol.length < 2) continue;
+        const side: Side = typeRaw.toLowerCase().startsWith("s") ? "Short" : "Long";
+        const volume = cleanNum(volumeRaw);
+        const qty = volume ? Math.max(1, Math.round(volume * 100)) : 1;
+        const entry = cleanNum(priceOpenRaw);
+        const exit = cleanNum(priceCloseRaw);
+        const commission = cleanNum(commRaw);
+        const swap = cleanNum(swapRaw);
+        const profit = cleanNum(profitRaw);
+        // net pnl = profit + commission + swap (commission is negative cost)
+        const pnl = Math.round(profit + commission + swap);
+        const risk = 250;
+        const r = pnl / risk;
+        out.push({
+          id: `MT5-${cols[1] || i}-${Date.now() % 100000}`,
+          date: isoDate,
+          ts: toTs(isoDate),
+          symbol,
+          side,
+          strategy: "Imported",
+          account: reportAccount,
+          session: "New York",
+          qty,
+          entry,
+          exit: exit || entry,
+          risk,
+          r: Math.round(r * 100) / 100,
+          pnl,
+          planned: true,
+        });
+      }
+      if (out.length) return out;
+      // fall through to generic CSV if MT5 parse yielded nothing
+    }
+  }
+
+  // ---------- Generic CSV (date,symbol,side,pnl ...) ----------
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length);
   if (lines.length < 2) return [];
   const head = lines[0].split(",").map((h) => h.trim().toLowerCase());
