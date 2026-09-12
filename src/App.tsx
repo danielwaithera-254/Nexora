@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, AlertTriangle, Info } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
@@ -22,12 +22,9 @@ import Goals from "./components/Goals";
 import Settings from "./components/Settings";
 import { Reveal } from "./components/ui";
 import {
-  generateTrades,
   parseTradesCSV,
   tradesToCSV,
   sampleCSV,
-  STRATEGIES,
-  ACCOUNTS,
   type Trade,
 } from "./data/trades";
 import {
@@ -71,21 +68,14 @@ export default function App() {
       return v && v.length ? v : [];
     } catch { return []; }
   });
-  const [tradesRaw, setTradesRaw] = useState<Trade[]>(() => generateTrades());
-  // unified source: accounts vault is source of truth — all tabs read from it
+  // unified source: ALL tabs read ONLY from Accounts vault — no demo trades
   const trades = useMemo(() => {
     let synced: string[] = [];
     try { synced = vaultGet<string[]>("nexora-synced-accounts", []); } catch {}
-    const pool = synced.length > 1 ? accounts.filter(a => synced.includes(a.id)) : accounts;
+    const pool = synced.length > 0 ? accounts.filter(a => synced.includes(a.id)) : accounts;
     const flat = pool.flatMap(a => a.trades.map(t => ({ ...t, account: a.name })));
-    if (flat.length) return flat;
-    // no account trades yet — fall back to generated/demo trades so dashboard isn't empty
-    return tradesRaw;
-  }, [accounts, tradesRaw]);
-  const setTrades: React.Dispatch<React.SetStateAction<Trade[]>> = (val) => {
-    const next = typeof val === "function" ? (val as (p: Trade[])=>Trade[])(tradesRaw) : val;
-    setTradesRaw(next);
-  };
+    return flat;
+  }, [accounts]);
   const [filters, setFilters] = useState<Filters>({ range: "90D", strategy: "All", account: "All" });
   const [dark, setDark] = useState(() => localStorage.getItem("nexora-dark") === "1");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -144,16 +134,38 @@ export default function App() {
     [trades, filters.strategy, filters.account]
   );
 
+  const availableStrategies = useMemo(() => ["All", ...Array.from(new Set(trades.map(t=>t.strategy).filter(Boolean))).sort()], [trades]);
+  const availableAccounts = useMemo(() => ["All", ...accounts.map(a=>a.name).sort()], [accounts]);
+  const hasData = trades.length > 0;
+  const EmptyState = ({ title, desc }: { title: string; desc: string }) => (
+    <div className="rounded-2xl border-2 border-dashed border-edge bg-panel p-10 text-center">
+      <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-brand-soft text-brand">◈</div>
+      <h3 className="mt-3 font-display text-base font-bold text-ink">{title}</h3>
+      <p className="mx-auto mt-1 max-w-md text-sm text-mut">{desc}</p>
+      <button onClick={()=> setPage("accounts")} className="mt-4 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-deep">Go to Accounts →</button>
+    </div>
+  );
+
   const handleFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
       const parsed = parseTradesCSV(String(reader.result ?? ""));
       if (parsed.length) {
-        // if accounts have data, distribute by account field
-        if (accounts.length && accounts.some(a=>a.trades.length>0 || accounts.flatMap(a=>a.trades).length>0)) {
-          // group parsed by account
-          const byAcc = new Map<string, Trade[]>();
-          parsed.forEach(t=> { const key=t.account || accounts[0]?.name || "Main"; const arr=byAcc.get(key) || []; arr.push(t); byAcc.set(key, arr); });
+        const byAcc = new Map<string, Trade[]>();
+        parsed.forEach(t=> {
+          const key = t.account?.trim() || (accounts[0]?.name || "Main");
+          const arr = byAcc.get(key) || [];
+          arr.push({ ...t, account: key });
+          byAcc.set(key, arr);
+        });
+        if (accounts.length === 0) {
+          // first import — create accounts for each distinct account in CSV
+          const newAccs: AccountConfig[] = [];
+          byAcc.forEach((list, accName) => {
+            newAccs.push({ id:`acc-${Date.now()}-${accName}-${Math.random().toString(36).slice(2,6)}`, name: accName, broker:"", accountNumber:"", type:"Personal", size:10000, maxDrawdown:10, platform:"", trades:list, createdAt:Date.now(), updatedAt:Date.now()});
+          });
+          setAccounts(newAccs);
+        } else {
           setAccounts(prev=>{
             let next=[...prev];
             byAcc.forEach((list, accName)=>{
@@ -163,8 +175,6 @@ export default function App() {
             });
             return next;
           });
-        } else {
-          setTradesRaw((t) => [...t, ...parsed]);
         }
         showToast(`Imported ${parsed.length} trades from ${file.name}`, "gain");
       } else {
@@ -203,6 +213,25 @@ export default function App() {
   };
 
   const renderPage = () => {
+    if (!hasData && page !== "accounts" && page !== "settings") {
+      return (
+        <>
+          <Reveal>
+            <ControlBar
+              filters={filters}
+              onChange={(f) => setFilters((prev) => ({ ...prev, ...f }))}
+              strategies={availableStrategies}
+              accounts={availableAccounts}
+              onImport={() => fileRef.current?.click()}
+              onExport={handleExport}
+              onSample={handleSample}
+              count={current.length}
+            />
+          </Reveal>
+          <EmptyState title="No trades yet" desc="Your dashboard is synced to Accounts — upload a CSV in the Accounts tab (per-account) to see P&L, win rate, equity curve and all analytics update automatically." />
+        </>
+      );
+    }
     switch (page) {
       case "dashboard":
         return (
@@ -211,8 +240,8 @@ export default function App() {
               <ControlBar
                 filters={filters}
                 onChange={(f) => setFilters((prev) => ({ ...prev, ...f }))}
-                strategies={[...STRATEGIES]}
-                accounts={[...ACCOUNTS]}
+                strategies={availableStrategies}
+                accounts={availableAccounts}
                 onImport={() => fileRef.current?.click()}
                 onExport={handleExport}
                 onSample={handleSample}
@@ -258,8 +287,8 @@ export default function App() {
               <ControlBar
                 filters={filters}
                 onChange={(f) => setFilters((prev) => ({ ...prev, ...f }))}
-                strategies={[...STRATEGIES]}
-                accounts={[...ACCOUNTS]}
+                strategies={availableStrategies}
+                accounts={availableAccounts}
                 onImport={() => fileRef.current?.click()}
                 onExport={handleExport}
                 onSample={handleSample}
