@@ -41,10 +41,23 @@ export const SYNCED_KEY = "nexora-synced-accounts";
 export function loadAccounts(): AccountConfig[] | null {
   try {
     const stored = vaultGet<AccountConfig[]>(VAULT_KEY, []);
-    return stored.length ? stored : null;
-  } catch {
-    return null;
-  }
+    if (stored.length) return stored;
+  } catch {}
+  try {
+    const ls = localStorage.getItem(VAULT_KEY);
+    if (ls) {
+      const parsed = JSON.parse(ls);
+      if (Array.isArray(parsed) && parsed.length) return parsed as AccountConfig[];
+    }
+  } catch {}
+  try {
+    const ls2 = localStorage.getItem("nexora-accounts-fallback");
+    if (ls2) {
+      const parsed2 = JSON.parse(ls2);
+      if (Array.isArray(parsed2) && parsed2.length) return parsed2 as AccountConfig[];
+    }
+  } catch {}
+  return null;
 }
 
 export function getDefaultAccounts(): AccountConfig[] {
@@ -89,15 +102,28 @@ export default function Accounts({ externalAccounts, onAccountsChange }: { exter
   const setAccounts: React.Dispatch<React.SetStateAction<AccountConfig[]>> = (onAccountsChange as any) ?? setInternalAccounts;
 
   const [query, setQuery] = useState("");
-  const [synced, setSynced] = useState<string[]>(() => { try { return vaultGet<string[]>(SYNCED_KEY, []);} catch { return []; }});
+  const [synced, setSynced] = useState<string[]>(() => {
+    try { const v = vaultGet<string[]>(SYNCED_KEY, []); if (v.length) return v; } catch {}
+    try { const ls = localStorage.getItem(SYNCED_KEY); if (ls) { const p = JSON.parse(ls); if (Array.isArray(p)) return p as string[]; } } catch {}
+    try { const ls2 = localStorage.getItem("nexora-synced-accounts-fallback"); if (ls2) { const p2 = JSON.parse(ls2); if (Array.isArray(p2)) return p2 as string[]; } } catch {}
+    return [];
+  });
   const [detailId, setDetailId] = useState<string | null>(null);
   const [manageId, setManageId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<AccountConfig>>({});
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
-  useEffect(() => { try { vaultSet(VAULT_KEY, accounts); } catch {} }, [accounts]);
-  useEffect(() => { try { vaultSet(SYNCED_KEY, synced); } catch {} }, [synced]);
+  useEffect(() => {
+    try { vaultSet(VAULT_KEY, accounts); } catch {}
+    try { localStorage.setItem(VAULT_KEY, JSON.stringify(accounts)); } catch {}
+    try { localStorage.setItem("nexora-accounts-fallback", JSON.stringify(accounts)); } catch {}
+  }, [accounts]);
+  useEffect(() => {
+    try { vaultSet(SYNCED_KEY, synced); } catch {}
+    try { localStorage.setItem(SYNCED_KEY, JSON.stringify(synced)); } catch {}
+    try { localStorage.setItem("nexora-synced-accounts-fallback", JSON.stringify(synced)); } catch {}
+  }, [synced]);
   useEffect(() => { if (!notice) return; const t = setTimeout(()=>setNotice(null), 3200); return ()=>clearTimeout(t); }, [notice]);
 
   const filteredAccounts = useMemo(()=> accounts.filter(acc=>{

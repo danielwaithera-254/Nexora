@@ -65,13 +65,25 @@ export default function App() {
   const [accounts, setAccounts] = useState<AccountConfig[]>(() => {
     try {
       const v = vaultGet<AccountConfig[]>("nexora-accounts", []);
-      return v && v.length ? v : [];
-    } catch { return []; }
+      if (v && v.length) return v;
+    } catch {}
+    try {
+      const ls = localStorage.getItem("nexora-accounts");
+      if (ls) { const p = JSON.parse(ls); if (Array.isArray(p) && p.length) return p as AccountConfig[]; }
+    } catch {}
+    try {
+      const ls2 = localStorage.getItem("nexora-accounts-fallback");
+      if (ls2) { const p2 = JSON.parse(ls2); if (Array.isArray(p2) && p2.length) return p2 as AccountConfig[]; }
+    } catch {}
+    return [];
   });
-  // unified source: ALL tabs read ONLY from Accounts vault — no demo trades
+  // unified source: ALL tabs read ONLY from Accounts — persisted to vault + localStorage so it survives reloads
   const trades = useMemo(() => {
     let synced: string[] = [];
-    try { synced = vaultGet<string[]>("nexora-synced-accounts", []); } catch {}
+    try { synced = vaultGet<string[]>("nexora-synced-accounts", []); if (!synced.length) throw new Error("empty"); } catch {
+      try { const ls = localStorage.getItem("nexora-synced-accounts"); if (ls) synced = JSON.parse(ls); } catch {}
+      if (!synced.length) { try { const ls2 = localStorage.getItem("nexora-synced-accounts-fallback"); if (ls2) synced = JSON.parse(ls2); } catch {} }
+    }
     const pool = synced.length > 0 ? accounts.filter(a => synced.includes(a.id)) : accounts;
     const flat = pool.flatMap(a => a.trades.map(t => ({ ...t, account: a.name })));
     return flat;
@@ -106,6 +118,13 @@ export default function App() {
 
   useEffect(() => {
     try { vaultSet("nexora-accounts", accounts); } catch {}
+    try { localStorage.setItem("nexora-accounts", JSON.stringify(accounts)); } catch {}
+    try { localStorage.setItem("nexora-accounts-fallback", JSON.stringify(accounts)); } catch {}
+    // also keep synced ids in localStorage so App can read them even when vault is locked
+    try {
+      const synced = localStorage.getItem("nexora-synced-accounts");
+      if (synced) localStorage.setItem("nexora-synced-accounts-fallback", synced);
+    } catch {}
   }, [accounts]);
 
   const showToast = (msg: string, tone: Toast["tone"] = "brand") => {
