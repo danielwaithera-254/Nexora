@@ -17,8 +17,6 @@ interface AnalyticsProps {
   onFiltersChange: (f: Partial<{ range: string; strategy: string; account: string }>) => void;
 }
 
-type Section = "overview" | "performance" | "symbols" | "risk";
-
 export default function Analytics({ trades, filters }: AnalyticsProps) {
   const [period, setPeriod] = useState<"week" | "month" | "all">("all");
   const [section, setSection] = useState<Section>("overview");
@@ -176,69 +174,43 @@ export default function Analytics({ trades, filters }: AnalyticsProps) {
         <HoverKpi label="Expectancy" value={fmtMoney(k.expectancy, { sign: true })} tone={k.expectancy >= 0 ? "gain" : "loss"} sub={`best ${fmtMoney(k.bestTrade)} · worst ${fmtMoney(k.worstTrade)}`} daily={daily} hoverDate={hoverDate} onHoverDay={setHoverDate} />
       </div>
 
-      {/* Section tabs — TradeZella style */}
-      <div className="flex flex-wrap gap-1 rounded-xl bg-panel2 p-1">
-        {([["overview", "Overview"], ["performance", "Performance"], ["symbols", "Symbols & Sessions"], ["risk", "Risk & Streaks"]] as [Section, string][]).map(([s, label]) => (
-          <button key={s} onClick={() => setSection(s)} className={cn("rounded-lg px-3 py-1.5 text-xs font-bold", section === s ? "bg-brand text-white shadow" : "text-mut hover:text-ink")}>
-            {label}
-          </button>
-        ))}
+      <div className="space-y-4">
+        <div className="h-[380px]"><CumPnLCard data={cum} /></div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="h-[380px]"><RadarCard scores={scores} /></div>
+          <div className="h-[380px]"><DonutCard data={donut.filter((d) => d.value > 0)} winRate={totals.winRate} /></div>
+        </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="h-[380px]"><WeekdayBarCard data={wd} /></div>
+          <div className="h-[380px]"><HeatmapCard trades={current} /></div>
+        </div>
+        <div className="h-[400px]"><BalanceCard data={bal} /></div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="h-[320px]"><MonthlyCard data={monthly} /></div>
+          <div className="h-[320px]"><HourlyCard byHour={byHour} best={bestHour} worst={worstHour} /></div>
+          <div className="h-[320px]"><DistributionCard daily={daily} /></div>
+        </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <SymbolTable symbols={bySymbol} />
+          <SessionTable sessions={bySession} />
+        </div>
+        <LongShortCard rows={longShort} />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <RiskStat label="Max Drawdown" value={fmtMoney(maxDd)} tone="loss" sub="peak-to-trough" />
+          <RiskStat label="Best Win Streak" value={`${streaks.bestWin}`} tone="gain" sub="consecutive wins" />
+          <RiskStat label="Worst Loss Streak" value={`${streaks.worstLoss}`} tone="loss" sub="consecutive losses" />
+          <RiskStat label="Live Streak" value={`${streaks.live.len} ${streaks.live.type}`} tone={streaks.live.type === "win" ? "gain" : "brand"} sub="most recent run" />
+        </div>
+        <div className="h-[360px]">
+          <Card className="flex h-full flex-col p-4">
+            <h3 className="text-sm font-bold text-ink">Drawdown Curve</h3>
+            <p className="text-[11px] text-faint">Distance below the running equity peak</p>
+            <div className="mt-3 min-h-0 flex-1">
+              <DrawdownChart curve={ddCurve} />
+            </div>
+          </Card>
+        </div>
       </div>
-
-      {section === "overview" && (
-        <div className="space-y-4">
-          <div className="h-[380px]"><CumPnLCard data={cum} /></div>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="h-[380px]"><RadarCard scores={scores} /></div>
-            <div className="h-[380px]"><DonutCard data={donut.filter((d) => d.value > 0)} winRate={totals.winRate} /></div>
-          </div>
-          <div className="h-[400px]"><BalanceCard data={bal} /></div>
-        </div>
-      )}
-
-      {section === "performance" && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="h-[380px]"><WeekdayBarCard data={wd} /></div>
-            <div className="h-[380px]"><HeatmapCard trades={current} /></div>
-          </div>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <div className="h-[320px]"><MonthlyCard data={monthly} /></div>
-            <div className="h-[320px]"><HourlyCard byHour={byHour} best={bestHour} worst={worstHour} /></div>
-            <div className="h-[320px]"><DistributionCard daily={daily} /></div>
-          </div>
-        </div>
-      )}
-
-      {section === "symbols" && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <SymbolTable symbols={bySymbol} />
-            <SessionTable sessions={bySession} />
-          </div>
-          <LongShortCard rows={longShort} />
-        </div>
-      )}
-
-      {section === "risk" && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <RiskStat label="Max Drawdown" value={fmtMoney(maxDd)} tone="loss" sub="peak-to-trough" />
-            <RiskStat label="Best Win Streak" value={`${streaks.bestWin}`} tone="gain" sub="consecutive wins" />
-            <RiskStat label="Worst Loss Streak" value={`${streaks.worstLoss}`} tone="loss" sub="consecutive losses" />
-            <RiskStat label="Live Streak" value={`${streaks.live.len} ${streaks.live.type}`} tone={streaks.live.type === "win" ? "gain" : "brand"} sub="most recent run" />
-          </div>
-          <div className="h-[360px]">
-            <Card className="flex h-full flex-col p-4">
-              <h3 className="text-sm font-bold text-ink">Drawdown Curve</h3>
-              <p className="text-[11px] text-faint">Distance below the running equity peak — TradeZella-style risk view</p>
-              <div className="mt-3 min-h-0 flex-1">
-                <DrawdownChart curve={ddCurve} />
-              </div>
-            </Card>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

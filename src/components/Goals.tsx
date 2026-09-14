@@ -1,231 +1,278 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Card, CardHead } from "./ui";
 import { cn } from "../utils/cn";
-import { CheckCircle2, AlertTriangle, Target, TrendingUp, Plus, Trash2, Edit2, Save, X, ChevronDown } from "lucide-react";
+import {
+  CheckCircle2,
+  Target,
+  TrendingUp,
+  Plus,
+  Trash2,
+  Edit2,
+  Flame,
+  ShieldCheck,
+  BookOpen,
+  CalendarCheck,
+  Minus,
+} from "lucide-react";
 import { vaultGet, vaultSet } from "../lib/vault";
 
 interface Goal {
   id: string;
   title: string;
-  type: "winrate" | "journal" | "risk" | "streak" | "trades" | "drawdown" | "custom";
+  type: "profit" | "winrate" | "journal" | "risk" | "streak" | "trades" | "drawdown" | "custom";
   target: number;
   current: number;
-  unit: "%" | "entries" | "%" | "days" | "trades" | "%" | "";
+  unit: string;
   description: string;
+  deadline: string;
   completed: boolean;
   createdAt: number;
 }
 
 const GOAL_TYPES = [
-  { value: "winrate", label: "Win Rate %", unit: "%", icon: Target },
-  { value: "journal", label: "Journal Entries", unit: "entries", icon: TrendingUp },
-  { value: "risk", label: "Max Risk Per Trade %", unit: "%", icon: AlertTriangle },
-  { value: "streak", label: "Profitable Streak Days", unit: "days", icon: Target },
-  { value: "trades", label: "Trades This Month", unit: "trades", icon: Target },
-  { value: "drawdown", label: "Max Drawdown %", unit: "%", icon: AlertTriangle },
-  { value: "custom", label: "Custom Goal", unit: "", icon: Target },
+  { value: "profit", label: "Profit Target ($)", unit: "$", icon: TrendingUp },
+  { value: "winrate", label: "Win Rate (%)", unit: "%", icon: Target },
+  { value: "journal", label: "Journal Entries", unit: "", icon: BookOpen },
+  { value: "risk", label: "Max Risk / Trade (%)", unit: "%", icon: ShieldCheck },
+  { value: "streak", label: "Green-Day Streak", unit: "d", icon: Flame },
+  { value: "trades", label: "Trades Logged", unit: "", icon: Target },
+  { value: "drawdown", label: "Stay Under Drawdown (%)", unit: "%", icon: ShieldCheck },
+  { value: "custom", label: "Custom", unit: "", icon: Target },
 ] as const;
+
+const TEMPLATES: { title: string; type: Goal["type"]; target: number; description: string }[] = [
+  { title: "Monthly profit target", type: "profit", target: 1000, description: "Net P&L for the month" },
+  { title: "60%+ win rate", type: "winrate", target: 60, description: "Keep win rate above target" },
+  { title: "Journal every trade", type: "journal", target: 20, description: "Write up every execution" },
+  { title: "10-day green streak", type: "streak", target: 10, description: "Consecutive green days" },
+];
 
 const VAULT_KEY = "nexora-goals";
 
 function loadGoals(): Goal[] {
   try {
-    return vaultGet<Goal[]>(VAULT_KEY, []);
+    const raw = vaultGet<any[]>(VAULT_KEY, []);
+    if (!Array.isArray(raw)) return [];
+    return raw.map((g) => ({
+      id: String(g.id ?? `g-${Date.now()}`),
+      title: String(g.title ?? "Goal"),
+      type: (g.type ?? "custom") as Goal["type"],
+      target: Number(g.target) || 0,
+      current: Number(g.current) || 0,
+      unit: String(g.unit ?? GOAL_TYPES.find((t) => t.value === g.type)?.unit ?? ""),
+      description: String(g.description ?? ""),
+      deadline: String(g.deadline ?? ""),
+      completed: Boolean(g.completed ?? Number(g.current) >= Number(g.target)),
+      createdAt: Number(g.createdAt) || Date.now(),
+    }));
   } catch {
     return [];
   }
 }
 
-function saveGoals(goals: Goal[]) {
-  vaultSet(VAULT_KEY, goals);
-}
-
 function getDefaultGoals(): Goal[] {
+  const now = Date.now();
   return [
-    { id: "g-1", title: "Maintain 60%+ Win Rate", type: "winrate", target: 60, current: 72, unit: "%", description: "Keep win rate above 60% across all strategies", completed: false, createdAt: Date.now() - 86400000 * 30 },
-    { id: "g-2", title: "Complete 20 Journal Entries", type: "journal", target: 20, current: 17, unit: "entries", description: "Write detailed journal entries for each trading day", completed: false, createdAt: Date.now() - 86400000 * 15 },
-    { id: "g-3", title: "Max Risk Per Trade: 1%", type: "risk", target: 1, current: 1, unit: "%", description: "Never risk more than 1% on a single trade", completed: true, createdAt: Date.now() - 86400000 * 60 },
-    { id: "g-4", title: "30-Day Profitable Streak", type: "streak", target: 30, current: 13, unit: "days", description: "Maintain consecutive profitable trading days", completed: false, createdAt: Date.now() - 86400000 * 7 },
+    { id: "g-1", title: "Monthly profit target", type: "profit", target: 1000, current: 720, unit: "$", description: "Net P&L for the month", deadline: "", completed: false, createdAt: now - 86400000 * 30 },
+    { id: "g-2", title: "60%+ win rate", type: "winrate", target: 60, current: 56, unit: "%", description: "Keep win rate above target", deadline: "", completed: false, createdAt: now - 86400000 * 15 },
+    { id: "g-3", title: "Journal every trade", type: "journal", target: 20, current: 20, unit: "", description: "Write up every execution", deadline: "", completed: true, createdAt: now - 86400000 * 60 },
+    { id: "g-4", title: "10-day green streak", type: "streak", target: 10, current: 4, unit: "d", description: "Consecutive green days", deadline: "", completed: false, createdAt: now - 86400000 * 7 },
   ];
 }
+
+const pct = (g: Goal) => Math.min(100, Math.round((g.current / Math.max(1, g.target)) * 100));
 
 export default function Goals() {
   const [goals, setGoals] = useState<Goal[]>(() => {
     const loaded = loadGoals();
-    return loaded.length > 0 ? loaded : getDefaultGoals();
+    return loaded.length ? loaded : getDefaultGoals();
   });
+  const [tab, setTab] = useState<"all" | "active" | "done">("all");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<Partial<Goal>>({
-    title: "",
-    type: "custom",
-    target: 0,
-    current: 0,
-    description: "",
-  });
+  const [form, setForm] = useState<Partial<Goal>>({ title: "", type: "custom", target: 0, current: 0, description: "", deadline: "" });
 
-  useEffect(() => {
-    saveGoals(goals);
-  }, [goals]);
+  useEffect(() => { try { vaultSet(VAULT_KEY, goals); } catch {} }, [goals]);
 
-  const addGoal = () => {
-    const newGoal: Goal = {
-      id: `g-${Date.now()}`,
-      title: form.title || "New Goal",
-      type: form.type || "custom",
-      target: form.target || 0,
-      current: form.current || 0,
-      unit: GOAL_TYPES.find(t => t.value === form.type)?.unit || "",
-      description: form.description || "",
-      completed: false,
-      createdAt: Date.now(),
-    };
-    setGoals(prev => [...prev, newGoal]);
-    setShowForm(false);
-    setForm({ title: "", type: "custom", target: 0, current: 0, description: "" });
-  };
+  const done = goals.filter((g) => g.completed).length;
+  const overall = goals.length ? Math.round(goals.reduce((s, g) => s + pct(g), 0) / goals.length) : 0;
+  const visible = goals.filter((g) => (tab === "active" ? !g.completed : tab === "done" ? g.completed : true));
 
-  const startEdit = (goal: Goal) => {
-    setEditingId(goal.id);
-    setForm({ ...goal });
-    setShowForm(true);
-  };
-
-  const saveEdit = (id: string) => {
-    setGoals(prev => prev.map(g => g.id === id ? { ...g, ...form, completed: form.current >= form.target } : g));
-    setEditingId(null);
-    setShowForm(false);
-    setForm({ title: "", type: "custom", target: 0, current: 0, description: "" });
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setShowForm(false);
-    setForm({ title: "", type: "custom", target: 0, current: 0, description: "" });
-  };
-
-  const deleteGoal = (id: string) => {
-    if (confirm("Delete this goal?")) {
-      setGoals(prev => prev.filter(g => g.id !== id));
+  const save = (patch: Partial<Goal>, id?: string) => {
+    if (id) {
+      setGoals((prev) => prev.map((g) => {
+        if (g.id !== id) return g;
+        const next = { ...g, ...patch };
+        next.completed = next.current >= next.target && next.target > 0;
+        return next;
+      }));
     }
   };
 
-  const updateProgress = (id: string, delta: number) => {
-    setGoals(prev => prev.map(g => {
-      if (g.id === id) {
-        const next = Math.max(0, Math.min(g.target, g.current + delta));
-        return { ...g, current: next, completed: next >= g.target };
-      }
-      return g;
-    }));
+  const submit = () => {
+    const type = (form.type ?? "custom") as Goal["type"];
+    const target = Math.max(0, Number(form.target) || 0);
+    const current = Math.max(0, Number(form.current) || 0);
+    if (editingId) {
+      setGoals((prev) => prev.map((g) => g.id === editingId ? {
+        ...g, ...form, type, target, current,
+        unit: GOAL_TYPES.find((t) => t.value === type)?.unit ?? "",
+        completed: target > 0 && current >= target,
+      } : g));
+      setEditingId(null);
+    } else {
+      setGoals((prev) => [...prev, {
+        id: `g-${Date.now()}`, title: (form.title ?? "").trim() || "New Goal", type, target, current,
+        unit: GOAL_TYPES.find((t) => t.value === type)?.unit ?? "",
+        description: (form.description ?? "").trim(), deadline: (form.deadline ?? "").trim(),
+        completed: target > 0 && current >= target, createdAt: Date.now(),
+      }]);
+    }
+    setShowForm(false);
+    setForm({ title: "", type: "custom", target: 0, current: 0, description: "", deadline: "" });
   };
 
-  const progress = (g: Goal) => Math.min(100, Math.round((g.current / Math.max(1, g.target)) * 100));
-
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-display text-xl font-bold text-ink">Goals</h1>
-          <p className="text-mut mt-0.5">Track your trading objectives and habits</p>
+          <h1 className="font-display text-xl font-bold leading-tight text-ink">Goals</h1>
+          <p className="text-xs text-mut">{done} of {goals.length} complete · {overall}% overall</p>
         </div>
-        <button onClick={() => { setForm({ title: "", type: "custom", target: 0, current: 0, description: "" }); setShowForm(true); }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-brand text-white font-semibold hover:bg-brand-deep transition-colors">
-          <Plus size={16} />
-          <span>Add Goal</span>
+        <button onClick={() => { setEditingId(null); setForm({ title: "", type: "custom", target: 0, current: 0, description: "", deadline: "" }); setShowForm(true); }} className="flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-sm font-semibold text-white hover:bg-brand-deep">
+          <Plus size={14} /> New Goal
         </button>
       </div>
 
-      {/* Add/Edit Form */}
-      {(showForm || editingId) && (
-        <Card className="p-4">
-          <h3 className="font-bold text-ink mb-4">{editingId ? "Edit Goal" : "Create New Goal"}</h3>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-mut mb-1">Goal Title</label>
-              <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g., Maintain 60%+ Win Rate" className="w-full px-3 py-2 rounded-lg border border-edge bg-panel text-ink focus:border-brand focus:outline-none" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-mut mb-1">Type</label>
-              <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as any, unit: GOAL_TYPES.find(t => t.value === e.target.value)?.unit || "" }))} className="w-full px-3 py-2 rounded-lg border border-edge bg-panel text-ink focus:border-brand focus:outline-none">
-                {GOAL_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-mut mb-1">Target Value</label>
-              <input type="number" step="0.1" value={form.target} onChange={e => setForm(f => ({ ...f, target: parseFloat(e.target.value) || 0 }))} className="w-full px-3 py-2 rounded-lg border border-edge bg-panel text-ink focus:border-brand focus:outline-none" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-mut mb-1">Current Progress</label>
-              <input type="number" step="0.1" value={form.current} onChange={e => setForm(f => ({ ...f, current: parseFloat(e.target.value) || 0 }))} className="w-full px-3 py-2 rounded-lg border border-edge bg-panel text-ink focus:border-brand focus:outline-none" />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-mut mb-1">Description</label>
-              <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} placeholder="Optional description..." className="w-full px-3 py-2 rounded-lg border border-edge bg-panel text-ink focus:border-brand focus:outline-none" />
+      {/* TradeZella-style summary strip */}
+      <Card className="p-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="relative grid h-16 w-16 shrink-0 place-items-center">
+            <svg viewBox="0 0 44 44" className="h-16 w-16 -rotate-90">
+              <circle cx="22" cy="22" r="18" fill="none" stroke="var(--edge2)" strokeWidth="5" />
+              <circle cx="22" cy="22" r="18" fill="none" stroke="var(--brand)" strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(overall / 100) * 113} 113`} className="transition-all duration-500" />
+            </svg>
+            <span className="absolute font-display text-sm font-bold text-ink">{overall}%</span>
+          </div>
+          <div className="min-w-[180px] flex-1">
+            <p className="text-sm font-bold text-ink">Overall progress</p>
+            <p className="text-xs text-mut">{done} completed · {goals.length - done} in progress</p>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-panel2">
+              <div className="h-full rounded-full bg-gradient-to-r from-brand to-gain transition-all" style={{ width: `${overall}%` }} />
             </div>
           </div>
-          <div className="mt-4 flex gap-2">
-            <button onClick={editingId ? () => saveEdit(editingId) : addGoal} className="flex-1 px-4 py-2 rounded-lg bg-brand text-white font-semibold hover:bg-brand-deep transition-colors">
-              {editingId ? "Save Changes" : "Create Goal"}
+          <div className="flex gap-1 rounded-xl bg-panel2 p-1">
+            {(["all", "active", "done"] as const).map((t) => (
+              <button key={t} onClick={() => setTab(t)} className={cn("rounded-lg px-3 py-1.5 text-xs font-bold", tab === t ? "bg-brand text-white" : "text-mut hover:text-ink")}>
+                {t === "all" ? `All (${goals.length})` : t === "active" ? `Active (${goals.length - done})` : `Done (${done})`}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      {/* Quick-add templates */}
+      {!showForm && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-faint">Quick add:</span>
+          {TEMPLATES.map((t) => (
+            <button
+              key={t.title}
+              onClick={() => setGoals((prev) => [...prev, { id: `g-${Date.now()}`, title: t.title, type: t.type, target: t.target, current: 0, unit: GOAL_TYPES.find((x) => x.value === t.type)?.unit ?? "", description: t.description, deadline: "", completed: false, createdAt: Date.now() }])}
+              className="rounded-full border border-edge bg-panel px-2.5 py-1 text-xs font-semibold text-mut transition-colors hover:border-brand hover:text-brand"
+            >
+              + {t.title}
             </button>
-            <button onClick={cancelEdit} className="flex-1 px-4 py-2 rounded-lg border border-edge bg-panel text-mut hover:bg-panel2 transition-colors">Cancel</button>
+          ))}
+        </div>
+      )}
+
+      {showForm && (
+        <Card className="p-4">
+          <h3 className="text-sm font-bold text-ink">{editingId ? "Edit goal" : "New goal"}</h3>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <label className="block md:col-span-2">
+              <span className="mb-1 block text-xs font-bold text-mut">Title</span>
+              <input value={form.title ?? ""} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g. Monthly profit target" className="w-full rounded-lg border border-edge bg-panel2 px-3 py-2 text-sm text-ink outline-none focus:border-brand" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold text-mut">Type</span>
+              <select value={form.type ?? "custom"} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as Goal["type"], unit: GOAL_TYPES.find((t) => t.value === e.target.value)?.unit ?? "" }))} className="w-full rounded-lg border border-edge bg-panel2 px-3 py-2 text-sm text-ink outline-none focus:border-brand">
+                {GOAL_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold text-mut">Deadline (optional)</span>
+              <input type="date" value={form.deadline ?? ""} onChange={(e) => setForm((f) => ({ ...f, deadline: e.target.value }))} className="w-full rounded-lg border border-edge bg-panel2 px-3 py-2 text-sm text-ink outline-none focus:border-brand" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold text-mut">Target</span>
+              <input type="number" min={0} step="any" value={form.target ?? 0} onChange={(e) => setForm((f) => ({ ...f, target: Number(e.target.value) || 0 }))} className="w-full rounded-lg border border-edge bg-panel2 px-3 py-2 text-sm text-ink outline-none focus:border-brand" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold text-mut">Current</span>
+              <input type="number" min={0} step="any" value={form.current ?? 0} onChange={(e) => setForm((f) => ({ ...f, current: Number(e.target.value) || 0 }))} className="w-full rounded-lg border border-edge bg-panel2 px-3 py-2 text-sm text-ink outline-none focus:border-brand" />
+            </label>
+            <label className="block md:col-span-2">
+              <span className="mb-1 block text-xs font-bold text-mut">Notes</span>
+              <input value={form.description ?? ""} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Why this goal matters…" className="w-full rounded-lg border border-edge bg-panel2 px-3 py-2 text-sm text-ink outline-none focus:border-brand" />
+            </label>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button onClick={submit} className="flex-1 rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-deep">{editingId ? "Save changes" : "Create goal"}</button>
+            <button onClick={() => { setShowForm(false); setEditingId(null); }} className="flex-1 rounded-lg border border-edge px-4 py-2 text-sm font-semibold text-mut hover:bg-panel2">Cancel</button>
           </div>
         </Card>
       )}
 
-      {/* Goals Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {goals.map((g) => {
-          const pct = progress(g);
-          const Icon = GOAL_TYPES.find(t => t.value === g.type)?.icon || Target;
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {visible.map((g) => {
+          const p = pct(g);
+          const Icon = GOAL_TYPES.find((t) => t.value === g.type)?.icon ?? Target;
           return (
-            <Card key={g.id} className="p-4 relative overflow-hidden">
-              <div className="flex items-start justify-between gap-2 mb-3">
-                <div className="p-2 rounded-lg bg-brand/10">
-                  <Icon className="w-5 h-5 text-brand" />
+            <Card key={g.id} className={cn("relative flex flex-col overflow-hidden p-4", g.completed && "ring-1 ring-gain/40")}>
+              <span className={cn("absolute inset-x-0 top-0 h-1", g.completed ? "bg-gain" : "bg-gradient-to-r from-brand to-brand-deep")} />
+              <div className="flex items-start gap-2.5">
+                <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl", g.completed ? "bg-gain-soft text-gain" : "bg-brand-soft text-brand")}>
+                  {g.completed ? <CheckCircle2 size={16} /> : <Icon size={16} />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="truncate text-sm font-bold text-ink">{g.title}</h3>
+                  <p className="truncate text-[11px] text-faint">{g.description || GOAL_TYPES.find((t) => t.value === g.type)?.label}</p>
                 </div>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => startEdit(g)} className="p-1.5 rounded-lg hover:bg-brand-soft transition-colors" title="Edit">
-                    <Edit2 className="w-4 h-4 text-mut" />
-                  </button>
-                  <button onClick={() => deleteGoal(g.id)} className="p-1.5 rounded-lg hover:bg-loss-soft transition-colors" title="Delete">
-                    <Trash2 className="w-4 h-4 text-loss" />
-                  </button>
-                </div>
-              </div>
-              <h3 className="font-bold text-ink mb-1 truncate">{g.title}</h3>
-              <p className="text-sm text-mut mb-3">{g.description}</p>
-
-              <div className="mb-3">
-                <div className="flex items-center justify-between text-sm mb-1">
-                  <span className="text-mut">Progress</span>
-                  <span className="font-bold text-ink">{progress(g)}%</span>
-                </div>
-                <div className="h-2 bg-surface border border-edge rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-brand to-brand-deep rounded-full transition-all duration-500" style={{ width: `${progress(g)}%` }} />
+                <div className="flex shrink-0 items-center gap-1">
+                  <button onClick={() => { setEditingId(g.id); setForm({ ...g }); setShowForm(true); }} className="rounded-md p-1.5 text-faint hover:bg-panel2 hover:text-ink" title="Edit"><Edit2 size={13} /></button>
+                  <button onClick={() => { if (confirm("Delete this goal?")) setGoals((prev) => prev.filter((x) => x.id !== g.id)); }} className="rounded-md p-1.5 text-faint hover:bg-loss-soft hover:text-loss" title="Delete"><Trash2 size={13} /></button>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-mut">{g.current.toLocaleString()}{g.unit}</span>
-                <span className="font-bold text-ink">/ {g.target.toLocaleString()}{g.unit}</span>
+              <div className="mt-3 flex items-end justify-between">
+                <p className="font-display text-xl font-bold tnum text-ink">
+                  {g.unit === "$" ? "$" : ""}{g.current.toLocaleString()}<span className="text-xs font-semibold text-faint"> / {g.unit === "$" ? "$" : ""}{g.target.toLocaleString()}{g.unit && g.unit !== "$" ? g.unit : ""}</span>
+                </p>
+                <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", g.completed ? "bg-gain-soft text-gain" : p >= 70 ? "bg-brand-soft text-brand" : "bg-panel2 text-mut")}>
+                  {g.completed ? "Complete" : `${p}%`}
+                </span>
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-panel2">
+                <div className={cn("h-full rounded-full transition-all", g.completed ? "bg-gain" : "bg-gradient-to-r from-brand to-brand-deep")} style={{ width: `${p}%` }} />
               </div>
 
-              <div className="flex gap-2 mt-4 pt-3 border-t border-edge">
-                <button onClick={() => updateProgress(g.id, -1)} disabled={g.current <= 0} className="flex-1 px-3 py-2 rounded-lg border border-edge bg-panel text-mut hover:bg-panel2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">−</button>
-                <button onClick={() => updateProgress(g.id, 1)} disabled={g.current >= g.target} className="flex-1 px-3 py-2 rounded-lg bg-brand text-white font-semibold hover:bg-brand-deep transition-colors text-sm">+</button>
-                {g.completed && <span className="flex items-center gap-1 px-3 py-2 rounded-lg bg-gain/10 text-gain text-sm font-semibold"><CheckCircle2 className="w-4 h-4" /> Complete</span>}
+              <div className="mt-3 flex items-center gap-2 border-t border-edge pt-3">
+                <button onClick={() => save({ current: Math.max(0, g.current - 1) }, g.id)} disabled={g.current <= 0} className="grid h-7 w-7 place-items-center rounded-lg border border-edge text-mut hover:bg-panel2 disabled:opacity-30"><Minus size={13} /></button>
+                <button onClick={() => save({ current: Math.min(g.target, g.current + 1) }, g.id)} disabled={g.current >= g.target} className="grid h-7 w-7 place-items-center rounded-lg bg-brand text-white hover:bg-brand-deep disabled:opacity-30"><Plus size={13} /></button>
+                <input type="range" min={0} max={Math.max(1, g.target)} value={Math.min(g.current, g.target)} onChange={(e) => save({ current: Number(e.target.value) }, g.id)} className="flex-1" aria-label="Goal progress" />
+                {g.deadline && <span className="shrink-0 text-[11px] font-semibold text-faint">{g.deadline.slice(5)}</span>}
               </div>
-
-              <p className="text-[10px] text-faint mt-2">Created {new Date(g.createdAt).toLocaleDateString()}</p>
             </Card>
           );
         })}
       </div>
 
-      {goals.length === 0 && (
-        <div className="text-center py-12">
-          <Target className="w-12 h-12 text-mut mx-auto mb-4" />
-          <p className="text-mut">No goals yet. Create your first trading goal!</p>
+      {!visible.length && (
+        <div className="py-10 text-center">
+          <Target className="mx-auto h-10 w-10 text-faint" />
+          <p className="mt-2 text-sm text-mut">{tab === "done" ? "No completed goals yet — keep pushing." : "No goals here. Create one above."}</p>
         </div>
       )}
     </div>
