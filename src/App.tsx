@@ -16,7 +16,7 @@ import DailyJournal from "./components/DailyJournal";
 import Accounts from "./components/Accounts";
 import Trades from "./components/Trades";
 import Analytics from "./components/Analytics";
-import Performance from "./components/Performance";
+import TradeJournal from "./components/TradeJournal";
 import Strategies from "./components/Strategies";
 import Goals from "./components/Goals";
 import Settings from "./components/Settings";
@@ -50,7 +50,7 @@ type PageId =
   | "accounts"
   | "trades"
   | "analytics"
-  | "performance"
+  | "tradejournal"
   | "strategies"
   | "calendar"
   | "goals"
@@ -368,8 +368,8 @@ export default function App() {
         return <Reveal><Trades trades={current} filters={filters} onFiltersChange={setFilters} onImport={() => fileRef.current?.click()} /></Reveal>;
       case "analytics":
         return <Reveal><Analytics trades={current} filters={filters} onFiltersChange={setFilters} /></Reveal>;
-      case "performance":
-        return <Reveal><Performance trades={current} /></Reveal>;
+      case "tradejournal":
+        return <Reveal><TradeJournal trades={current} /></Reveal>;
       case "strategies":
         return <Reveal><Strategies trades={current} /></Reveal>;
       case "calendar":
@@ -389,7 +389,7 @@ export default function App() {
     accounts: "Accounts",
     trades: "Trades",
     analytics: "Analytics",
-    performance: "Performance",
+    tradejournal: "Trade Journal",
     strategies: "Strategies",
     calendar: "Calendar",
     goals: "Goals",

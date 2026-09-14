@@ -13,7 +13,7 @@ import {
   Plus,
   Settings as SettingsIcon,
   X,
-  TrendingUp,
+  NotebookPen,
   BookOpen,
   Flame,
   PanelLeftClose,
@@ -29,7 +29,7 @@ export type PageId =
   | "accounts"
   | "trades"
   | "analytics"
-  | "performance"
+  | "tradejournal"
   | "strategies"
   | "calendar"
   | "goals"
@@ -46,10 +46,10 @@ interface NavItem {
 const NAV: NavItem[] = [
   { id: "dashboard", name: "Dashboard", icon: LayoutDashboard, section: "workspace" },
   { id: "journal", name: "Daily Journal", icon: CalendarDays, section: "workspace" },
+  { id: "tradejournal", name: "Trade Journal", icon: NotebookPen, section: "workspace" },
   { id: "accounts", name: "Accounts", icon: Wallet, section: "workspace" },
   { id: "trades", name: "Trades", icon: CandlestickChart, section: "analytics" },
   { id: "analytics", name: "Analytics", icon: BarChart3, section: "analytics" },
-  { id: "performance", name: "Performance", icon: TrendingUp, section: "analytics" },
   { id: "strategies", name: "Strategies", icon: Target, section: "analytics" },
   { id: "calendar", name: "Calendar", icon: Calendar, section: "habits" },
   { id: "goals", name: "Goals", icon: TargetIcon, section: "habits" },
