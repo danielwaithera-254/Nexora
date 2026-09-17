@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   ChevronLeft,
@@ -9,10 +9,12 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Minus,
+  X,
 } from "lucide-react";
 import { Card, CardHead } from "./ui";
 import type { Trade } from "../data/trades";
 import { fmtDate, fmtMoney, fmtPct } from "../lib/format";
+import { computeKpis } from "../lib/metrics";
 import { cn } from "../utils/cn";
 
 const iso = (d: Date) => {
@@ -34,6 +36,7 @@ export default function Calendar({ trades }: { trades: Trade[] }) {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
+  const [selected, setSelected] = useState<string | null>(null);
 
   /* per-day aggregation with individual trade results */
   const map = useMemo(() => {
@@ -250,9 +253,11 @@ export default function Calendar({ trades }: { trades: Trade[] }) {
                         <div
                           key={key}
                           style={c.inMonth ? { animationDelay: `${wi * 40 + c.date.getDay() * 18}ms` } : undefined}
+                          onClick={() => { if (rec) setSelected(key); }}
                           className={cn(
                             "group relative h-[76px] rounded-xl border p-1.5 transition-all duration-200 ease-out",
-                            c.inMonth && "cal-cell cursor-default hover:z-20 hover:-translate-y-1",
+                            c.inMonth && rec && "cal-cell cursor-pointer hover:z-20 hover:-translate-y-1 active:translate-y-0 active:scale-[0.98]",
+                            c.inMonth && !rec && "cal-cell",
                             !c.inMonth
                               ? "border-transparent"
                               : rec && rec.pnl > 0
@@ -403,7 +408,98 @@ export default function Calendar({ trades }: { trades: Trade[] }) {
           </div>
         </div>
       </div>
+      {selected && (
+        <DayPnlModal
+          date={selected}
+          trades={trades.filter((t) => t.date === selected)}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </Card>
+  );
+}
+
+/* Axion-wallet / FOMO style day-P&L card — opens on cell click, blurs the rest */
+function DayPnlModal({ date, trades, onClose }: { date: string; trades: Trade[]; onClose: () => void }) {
+  const k = useMemo(() => computeKpis(trades), [trades]);
+  const win = k.count ? Math.round((k.wins / k.count) * 100) : 0;
+  const up = k.net >= 0;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0a0716]/70 p-4 backdrop-blur-md"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className={cn(
+          "relative w-full max-w-sm overflow-hidden rounded-3xl border p-6 text-center shadow-2xl",
+          "bg-[linear-gradient(165deg,#1e0b45_0%,#2b1160_45%,#0d0618_100%)]",
+          up ? "border-gain/40 shadow-[0_0_80px_-12px_rgba(52,211,153,0.45)]" : "border-loss/40 shadow-[0_0_80px_-12px_rgba(251,111,127,0.45)]"
+        )}
+      >
+        {/* glow orb */}
+        <div
+          className="pointer-events-none absolute -top-20 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full blur-3xl"
+          style={{ background: up ? "rgba(52,211,153,0.25)" : "rgba(251,111,127,0.25)" }}
+        />
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-3 top-3 rounded-lg p-1.5 text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+        >
+          <X size={15} />
+        </button>
+
+        <p className="relative text-[10px] font-extrabold uppercase tracking-[0.22em] text-white/50">
+          {fmtDate(date)} · Day P&amp;L
+        </p>
+        <p
+          className="relative mt-2 font-display text-[44px] font-bold leading-none tracking-tight tnum"
+          style={{ color: up ? "var(--gain)" : "var(--loss)", textShadow: up ? "0 0 32px rgba(52,211,153,0.45)" : "0 0 32px rgba(251,111,127,0.45)" }}
+        >
+          {fmtMoney(k.net, { sign: true })}
+        </p>
+        <p className="relative mt-1 text-[11px] font-semibold text-white/55">
+          {k.count} trades · {k.wins}W / {k.losses}L · {win}% win
+        </p>
+
+        <div className="relative mt-4 grid grid-cols-3 gap-2 text-center">
+          {[
+            { label: "Win rate", value: `${win}%` },
+            { label: "PF", value: k.pf >= 99 ? "99+" : k.pf.toFixed(2) },
+            { label: "Best", value: fmtMoney(k.bestTrade, { sign: true }) },
+          ].map((s) => (
+            <div key={s.label} className="rounded-xl bg-white/[0.06] px-2 py-2 ring-1 ring-white/10">
+              <p className="text-[9px] font-extrabold uppercase tracking-wider text-white/45">{s.label}</p>
+              <p className="tnum mt-0.5 font-display text-[15px] font-bold text-white">{s.value}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="relative mt-3 max-h-44 space-y-1.5 overflow-y-auto text-left">
+          {[...trades].sort((a, b) => b.pnl - a.pnl).map((t) => (
+            <div key={t.id} className="flex items-center gap-2 rounded-xl bg-white/[0.05] px-3 py-2 ring-1 ring-white/10">
+              <span className="rounded-md bg-white/10 px-1.5 py-0.5 font-display text-[11px] font-bold text-white">{t.symbol}</span>
+              <span className="text-[11px] text-white/55">{t.side}</span>
+              <span className={cn("ml-auto font-display text-[13px] font-bold tnum", t.pnl >= 0 ? "text-gain" : "text-loss")}>
+                {fmtMoney(t.pnl, { sign: true })}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <p className="relative mt-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
+          Nexora · {trades[0]?.account ?? ""}
+        </p>
+      </div>
+    </div>
   );
 }
 
