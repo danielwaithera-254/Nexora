@@ -36,29 +36,29 @@
 }
 
 /* =========================================================
-   DARK — Robinhood-style: pure-black canvas, charcoal cards,
-   hairline borders, neon green/red. Brand purple stays Nexora.
+   DARK — Phantom-wallet style: deep purple-tinted near-black,
+   soft lavender surfaces, Phantom purple accent, mint/rose P&L.
    ========================================================= */
 .dark {
-  --surface: #000000;
-  --panel: #1a1d23;
-  --panel2: #101216;
-  --edge: #2b2f36;
-  --edge2: #22262d;
-  --ink: #f5f6f7;
-  --mut: #9aa0a8;
-  --faint: #5f6570;
+  --surface: #0e0e17;
+  --panel: #1c1c28;
+  --panel2: #12121b;
+  --edge: #2e2e42;
+  --edge2: #242433;
+  --ink: #f2f1fa;
+  --mut: #a09bb8;
+  --faint: #625d7d;
 
-  /* Nexora brand stays purple on near-black */
-  --brand: #8b5cf6;
-  --brand-deep: #7c3aed;
-  --brand-soft: #221a38;
-  --brand-ring: rgba(139, 92, 246, 0.42);
+  /* Phantom purple accent */
+  --brand: #ab9ff2;
+  --brand-deep: #8b7cf6;
+  --brand-soft: #292344;
+  --brand-ring: rgba(171, 159, 242, 0.42);
 
-  --gain: #00c805;
-  --gain-soft: #0a2b1a;
-  --loss: #ff5000;
-  --loss-soft: #38150a;
+  --gain: #00c389;
+  --gain-soft: #0a2b22;
+  --loss: #ff5c5c;
+  --loss-soft: #3a1518;
   /* Warn remapped to brand purple tint to replace orange strips */
   --warn: #8b5cf6;
   --warn-soft: #221a38;
