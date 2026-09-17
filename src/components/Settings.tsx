@@ -1,15 +1,24 @@
 ﻿import { useState, useEffect } from "react";
 import { Card, CardHead } from "./ui";
 import { cn } from "../utils/cn";
-import { Save, User, Moon, Sun, ShieldCheck, Lock, Download, Upload, KeyRound, CheckCircle2, AlertTriangle, Bell, Palette, Database, Globe, Layers } from "lucide-react";
+import { Save, User, Moon, Sun, ShieldCheck, Lock, Download, Upload, KeyRound, CheckCircle2, AlertTriangle, Bell, Palette, Database, Globe, Layers, Cloud, LogOut, RefreshCw } from "lucide-react";
 import { vaultGet, vaultSet } from "../lib/vault";
+
+export interface CloudAccountInfo {
+  email: string | null;
+  syncing: boolean;
+  lastSynced: string | null;
+  onSyncNow: () => void;
+  onSignOut: () => void;
+}
 
 interface SettingsProps {
   dark?: boolean;
   onToggleDark?: () => void;
+  cloudAccount?: CloudAccountInfo;
 }
 
-export default function Settings({ dark = false, onToggleDark }: SettingsProps) {
+export default function Settings({ dark = false, onToggleDark, cloudAccount }: SettingsProps) {
   const [name, setName] = useState(() => vaultGet<{ name?: string }>("settings", {}).name ?? "Jordan Tate");
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("nexora-dark") === "1");
   const [notifications, setNotifications] = useState(() => vaultGet<{ notifications?: boolean }>("settings", {}).notifications ?? true);
@@ -125,6 +134,33 @@ export default function Settings({ dark = false, onToggleDark }: SettingsProps) 
           {msg.ok ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
           <span className="font-medium">{msg.text}</span>
         </div>
+      )}
+
+      {cloudAccount && (
+        <Card>
+          <CardHead title="Cloud Account" info="Your login — same data on every device and browser" icon={<Cloud size={16} />} />
+          <div className="space-y-3 p-4">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-edge bg-panel2 px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-ink">{cloudAccount.email ?? "Signed in"}</p>
+                <p className="text-[11px] text-mut">
+                  {cloudAccount.syncing ? "Syncing…" : cloudAccount.lastSynced ? `Last synced ${new Date(cloudAccount.lastSynced).toLocaleString()}` : "Sync ready"}
+                </p>
+              </div>
+              <span className="rounded-full bg-gain-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gain">Synced</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={cloudAccount.onSyncNow} disabled={cloudAccount.syncing}
+                className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-deep disabled:opacity-50">
+                <RefreshCw size={14} className={cloudAccount.syncing ? "animate-spin" : ""} /> Sync now
+              </button>
+              <button onClick={cloudAccount.onSignOut}
+                className="flex items-center gap-1.5 rounded-lg border border-edge px-4 py-2 text-sm font-semibold text-mut hover:border-loss hover:text-loss">
+                <LogOut size={14} /> Sign out
+              </button>
+            </div>
+          </div>
+        </Card>
       )}
 
       {/* Profile */}

@@ -43,6 +43,22 @@ import {
 import { cn } from "./utils/cn";
 import { vaultGet, vaultSet } from "./lib/vault";
 import type { AccountConfig } from "./components/Accounts";
+import Auth from "./components/Auth";
+import {
+  CLOUD_ENABLED,
+  getSession,
+  onAuthChange,
+  pullState,
+  pushState,
+  readLocalSnapshot,
+  applySnapshot,
+  readAccounts,
+  getLocalTs,
+  setLocalTs,
+  snapshotHash,
+  signOut,
+  type Session,
+} from "./lib/cloud";
 
 type PageId =
   | "dashboard"
@@ -94,6 +110,13 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("nexora-collapsed") === "1");
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [page, setPage] = useState<PageId>("dashboard");
+  const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [offline, setOffline] = useState(false);
+  const [cloudBooted, setCloudBooted] = useState(false);
+  const [dataEpoch, setDataEpoch] = useState(0);
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => getLocalTs() || null);
+  const lastPushedHash = useRef<string>("");
   const [toast, setToast] = useState<Toast | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<number>(0);
@@ -126,6 +149,90 @@ export default function App() {
       if (synced) localStorage.setItem("nexora-synced-accounts-fallback", synced);
     } catch {}
   }, [accounts]);
+
+  // ---- cloud auth + sync ----
+  useEffect(() => {
+    if (!CLOUD_ENABLED) { setSession(null); return; }
+    let unsub: (() => void) | undefined;
+    getSession().then((s) => { setSession(s); if (!s) setCloudBooted(false); });
+    unsub = onAuthChange((s) => { setSession(s); if (!s) setCloudBooted(false); });
+    return () => unsub?.();
+  }, []);
+
+  const pushNow = async (silent = false) => {
+    if (!CLOUD_ENABLED) return;
+    let s: Session | null = null;
+    try { s = await getSession(); } catch {}
+    if (!s) return;
+    const snap = readLocalSnapshot();
+    const hash = snapshotHash(snap);
+    if (silent && hash === lastPushedHash.current) return;
+    setSyncBusy(true);
+    try {
+      const ts = await pushState(snap);
+      lastPushedHash.current = hash;
+      setLocalTs(ts);
+      setLastSyncedAt(ts);
+      if (!silent) showToast("Synced to cloud", "gain");
+    } catch {
+      if (!silent) showToast("Cloud sync failed — data is safe on this device", "loss");
+    } finally {
+      setSyncBusy(false);
+    }
+  };
+
+  // initial pull/merge after login
+  useEffect(() => {
+    if (!CLOUD_ENABLED || !session || cloudBooted) return;
+    (async () => {
+      try {
+        const remote = await pullState();
+        const localTs = getLocalTs();
+        if (remote && (!localTs || remote.updatedAt > localTs)) {
+          applySnapshot(remote.data);
+          setAccounts(readAccounts() as AccountConfig[]);
+          setDataEpoch((e) => e + 1);
+          setLocalTs(remote.updatedAt);
+          setLastSyncedAt(remote.updatedAt);
+          lastPushedHash.current = snapshotHash(readLocalSnapshot());
+          showToast("Synced from cloud", "gain");
+        } else {
+          await pushNow(true);
+        }
+      } catch {
+        /* stay local */
+      } finally {
+        setCloudBooted(true);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, cloudBooted]);
+
+  // auto-sync every 25s + on tab hide
+  useEffect(() => {
+    if (!CLOUD_ENABLED || !session || !cloudBooted) return;
+    const id = window.setInterval(() => { pushNow(true); }, 25000);
+    const onHide = () => { if (document.visibilityState === "hidden") pushNow(true); };
+    const onSyncEvent = () => { pushNow(false); };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("nexora-sync-now" as any, onSyncEvent);
+    window.addEventListener("beforeunload", onHide);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("nexora-sync-now" as any, onSyncEvent);
+      window.removeEventListener("beforeunload", onHide);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, cloudBooted]);
+
+  const handleSignOut = async () => {
+    await pushNow(true);
+    await signOut();
+    setSession(null);
+    setCloudBooted(false);
+    setPage("dashboard");
+  };
 
   const showToast = (msg: string, tone: Toast["tone"] = "brand") => {
     window.clearTimeout(toastTimer.current);
@@ -377,11 +484,37 @@ export default function App() {
       case "goals":
         return <Reveal><Goals /></Reveal>;
       case "settings":
-        return <Reveal><Settings /></Reveal>;
+        return <Reveal><Settings cloudAccount={CLOUD_ENABLED && !offline ? {
+          email: session?.user?.email ?? null,
+          syncing: syncBusy,
+          lastSynced: lastSyncedAt,
+          onSyncNow: () => { window.dispatchEvent(new CustomEvent("nexora-sync-now")); },
+          onSignOut: handleSignOut,
+        } : undefined} /></Reveal>;
       default:
         return <div className="text-center py-12 text-mut">Page not found</div>;
     }
   };
+
+  if (CLOUD_ENABLED && !offline && session === undefined) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface">
+        <div className="flex flex-col items-center gap-3">
+          <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white shadow-lg">
+            <svg width="22" height="22" viewBox="0 0 32 32" fill="none">
+              <path d="M6 22l6-8 5 5 9-12" stroke="#7c3aed" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="26" cy="7" r="3" fill="#a855f7" />
+            </svg>
+          </span>
+          <p className="text-sm font-semibold text-mut">Loading Nexora…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (CLOUD_ENABLED && !offline && session === null) {
+    return <Auth onOffline={() => setOffline(true)} />;
+  }
 
   const pageTitle: Record<PageId, string> = {
     dashboard: "Dashboard",
@@ -418,7 +551,7 @@ export default function App() {
           pageLabel={pageTitle[page]}
         />
 
-        <main className="mx-auto w-full max-w-[1520px] flex-1 space-y-4 p-4 sm:p-5">{renderPage()}</main>
+        <main key={dataEpoch} className="mx-auto w-full max-w-[1520px] flex-1 space-y-4 p-4 sm:p-5">{renderPage()}</main>
 
         <footer className="mx-auto w-full max-w-[1520px] px-4 pb-4 text-[10.5px] text-faint sm:px-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -427,6 +560,8 @@ export default function App() {
             </span>
             <span className="tnum">
               {trades.length} trades on file · {current.length} in view
+              {CLOUD_ENABLED && !offline && session ? ` · cloud ${syncBusy ? "syncing…" : lastSyncedAt ? "synced " + new Date(lastSyncedAt).toLocaleTimeString() : "ready"}` : ""}
+              {CLOUD_ENABLED && (offline || !session) ? " · offline mode" : ""}
             </span>
           </div>
         </footer>
