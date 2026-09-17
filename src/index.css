@@ -36,36 +36,37 @@
 }
 
 /* =========================================================
-   DARK — deep violet-black with rich electric purple accents
+   DARK — Robinhood-style: pure-black canvas, charcoal cards,
+   hairline borders, neon green/red. Brand purple stays Nexora.
    ========================================================= */
 .dark {
-  --surface: #0a0716;
-  --panel: #15112c;
-  --panel2: #100d23;
-  --edge: #282147;
-  --edge2: #1f1a3a;
-  --ink: #ece9f8;
-  --mut: #968fb8;
-  --faint: #645d87;
+  --surface: #000000;
+  --panel: #1a1d23;
+  --panel2: #101216;
+  --edge: #2b2f36;
+  --edge2: #22262d;
+  --ink: #f5f6f7;
+  --mut: #9aa0a8;
+  --faint: #5f6570;
 
-  /* Refined, vivid electric purple — never pale or chalky */
+  /* Nexora brand stays purple on near-black */
   --brand: #8b5cf6;
   --brand-deep: #7c3aed;
-  --brand-soft: #28134d;
+  --brand-soft: #221a38;
   --brand-ring: rgba(139, 92, 246, 0.42);
 
-  --gain: #34d399;
-  --gain-soft: #0c2e24;
-  --loss: #fb6f7f;
-  --loss-soft: #331420;
+  --gain: #00c805;
+  --gain-soft: #0a2b1a;
+  --loss: #ff5000;
+  --loss-soft: #38150a;
   /* Warn remapped to brand purple tint to replace orange strips */
   --warn: #8b5cf6;
-  --warn-soft: #28134d;
+  --warn-soft: #221a38;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 12px 32px -16px rgba(0, 0, 0, 0.8);
-  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.5), 0 24px 56px -20px rgba(0, 0, 0, 0.9);
-  --sheen: rgba(255, 255, 255, 0.06);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.6);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 12px 32px -16px rgba(0, 0, 0, 0.9);
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.6), 0 24px 56px -20px rgba(0, 0, 0, 0.95);
+  --sheen: rgba(255, 255, 255, 0.05);
 }
 
 @theme inline {

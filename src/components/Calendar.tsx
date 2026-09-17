@@ -433,71 +433,75 @@ function DayPnlModal({ date, trades, onClose }: { date: string; trades: Trade[];
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0a0716]/70 p-4 backdrop-blur-md"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className={cn(
-          "relative w-full max-w-sm overflow-hidden rounded-3xl border p-6 text-center shadow-2xl",
-          "bg-[linear-gradient(165deg,#1e0b45_0%,#2b1160_45%,#0d0618_100%)]",
-          up ? "border-gain/40 shadow-[0_0_80px_-12px_rgba(52,211,153,0.45)]" : "border-loss/40 shadow-[0_0_80px_-12px_rgba(251,111,127,0.45)]"
-        )}
+        className="sheen relative w-full max-w-sm overflow-hidden rounded-2xl border border-edge bg-panel text-center shadow-[var(--shadow-lg)]"
       >
-        {/* glow orb */}
-        <div
-          className="pointer-events-none absolute -top-20 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full blur-3xl"
-          style={{ background: up ? "rgba(52,211,153,0.25)" : "rgba(251,111,127,0.25)" }}
-        />
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          className="absolute right-3 top-3 rounded-lg p-1.5 text-white/50 transition-colors hover:bg-white/10 hover:text-white"
-        >
-          <X size={15} />
-        </button>
+        {/* Nexora brand top edge */}
+        <div className="brand-gradient h-1.5 w-full" />
+        <div className="p-6">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute right-3 top-4 rounded-lg p-1.5 text-faint transition-colors hover:bg-panel2 hover:text-ink"
+          >
+            <X size={15} />
+          </button>
 
-        <p className="relative text-[10px] font-extrabold uppercase tracking-[0.22em] text-white/50">
-          {fmtDate(date)} · Day P&amp;L
-        </p>
-        <p
-          className="relative mt-2 font-display text-[44px] font-bold leading-none tracking-tight tnum"
-          style={{ color: up ? "var(--gain)" : "var(--loss)", textShadow: up ? "0 0 32px rgba(52,211,153,0.45)" : "0 0 32px rgba(251,111,127,0.45)" }}
-        >
-          {fmtMoney(k.net, { sign: true })}
-        </p>
-        <p className="relative mt-1 text-[11px] font-semibold text-white/55">
-          {k.count} trades · {k.wins}W / {k.losses}L · {win}% win
-        </p>
+          <div className="flex items-center justify-center gap-2">
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-white shadow dark:bg-white">
+              <svg width="14" height="14" viewBox="0 0 32 32" fill="none">
+                <path d="M6 22l6-8 5 5 9-12" stroke="#7c3aed" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="26" cy="7" r="3" fill="#a855f7" />
+              </svg>
+            </span>
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-faint">
+              Nexora · {fmtDate(date)}
+            </p>
+          </div>
 
-        <div className="relative mt-4 grid grid-cols-3 gap-2 text-center">
-          {[
-            { label: "Win rate", value: `${win}%` },
-            { label: "PF", value: k.pf >= 99 ? "99+" : k.pf.toFixed(2) },
-            { label: "Best", value: fmtMoney(k.bestTrade, { sign: true }) },
-          ].map((s) => (
-            <div key={s.label} className="rounded-xl bg-white/[0.06] px-2 py-2 ring-1 ring-white/10">
-              <p className="text-[9px] font-extrabold uppercase tracking-wider text-white/45">{s.label}</p>
-              <p className="tnum mt-0.5 font-display text-[15px] font-bold text-white">{s.value}</p>
-            </div>
-          ))}
+          <p
+            className="mt-3 font-display text-[44px] font-bold leading-none tracking-tight tnum"
+            style={{ color: up ? "var(--gain)" : "var(--loss)" }}
+          >
+            {fmtMoney(k.net, { sign: true })}
+          </p>
+          <p className="mt-1.5 text-[11px] font-semibold text-mut">
+            {k.count} trades · {k.wins}W / {k.losses}L · {win}% win
+          </p>
+
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+            {[
+              { label: "Win rate", value: `${win}%` },
+              { label: "PF", value: k.pf >= 99 ? "99+" : k.pf.toFixed(2) },
+              { label: "Best", value: fmtMoney(k.bestTrade, { sign: true }) },
+            ].map((s) => (
+              <div key={s.label} className="rounded-xl border border-edge bg-panel2 px-2 py-2">
+                <p className="text-[9px] font-extrabold uppercase tracking-wider text-faint">{s.label}</p>
+                <p className="tnum mt-0.5 font-display text-[15px] font-bold text-ink">{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 max-h-44 space-y-1.5 overflow-y-auto text-left">
+            {[...trades].sort((a, b) => b.pnl - a.pnl).map((t) => (
+              <div key={t.id} className="flex items-center gap-2 rounded-xl border border-edge bg-panel2 px-3 py-2">
+                <span className="rounded-md bg-brand-soft px-1.5 py-0.5 font-display text-[11px] font-bold text-brand">{t.symbol}</span>
+                <span className="text-[11px] text-mut">{t.side}</span>
+                <span className={cn("ml-auto font-display text-[13px] font-bold tnum", t.pnl >= 0 ? "text-gain" : "text-loss")}>
+                  {fmtMoney(t.pnl, { sign: true })}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-faint">
+            {trades[0]?.account ?? ""} · {trades[0]?.strategy ?? ""}
+          </p>
         </div>
-
-        <div className="relative mt-3 max-h-44 space-y-1.5 overflow-y-auto text-left">
-          {[...trades].sort((a, b) => b.pnl - a.pnl).map((t) => (
-            <div key={t.id} className="flex items-center gap-2 rounded-xl bg-white/[0.05] px-3 py-2 ring-1 ring-white/10">
-              <span className="rounded-md bg-white/10 px-1.5 py-0.5 font-display text-[11px] font-bold text-white">{t.symbol}</span>
-              <span className="text-[11px] text-white/55">{t.side}</span>
-              <span className={cn("ml-auto font-display text-[13px] font-bold tnum", t.pnl >= 0 ? "text-gain" : "text-loss")}>
-                {fmtMoney(t.pnl, { sign: true })}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <p className="relative mt-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
-          Nexora · {trades[0]?.account ?? ""}
-        </p>
       </div>
     </div>
   );
