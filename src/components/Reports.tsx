@@ -111,18 +111,33 @@ export default function Reports({ trades }: { trades: Trade[] }) {
           <CardHead title="First half vs second half" info="Is your trading improving over time?" />
           {!groups ? <p className="py-6 text-center text-xs text-mut">Need at least 4 trades to compare.</p> : (
             <div className="grid grid-cols-2 gap-3">
-              {groups.map((g) => (
-                <div key={g.label} className="rounded-xl border border-edge bg-panel2 p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-mut">{g.label} trades</p>
-                  <p className={cn("mt-1 font-display text-lg font-bold tnum", g.kpis.net >= 0 ? "text-gain" : "text-loss")}>{fmtMoney(g.kpis.net, { sign: true })}</p>
-                  <div className="mt-2 space-y-1 text-[11px] text-mut">
-                    <div className="flex justify-between"><span>Win rate</span><b className="text-ink tnum">{g.kpis.winRate.toFixed(1)}%</b></div>
-                    <div className="flex justify-between"><span>Profit factor</span><b className="text-ink tnum">{g.kpis.pf.toFixed(2)}</b></div>
-                    <div className="flex justify-between"><span>Expectancy</span><b className="text-ink tnum">{fmtMoney(g.kpis.expectancy, { sign: true })}</b></div>
-                    <div className="flex justify-between"><span>Avg R</span><b className="text-ink tnum">{g.kpis.wlRatio.toFixed(2)}×</b></div>
+              {groups.map((g, gi) => {
+                const other = groups[1 - gi].kpis;
+                const dNet = g.kpis.net - other.net;
+                const dWr = g.kpis.winRate - other.winRate;
+                return (
+                  <div key={g.label} className={cn("rounded-xl border p-3", gi === 1 ? "border-brand/40 bg-brand-soft/40" : "border-edge bg-panel2")}>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-mut">{g.label} trades</p>
+                      {gi === 1 && (
+                        <span className={cn("rounded-md px-1.5 py-0.5 text-[10px] font-bold", dNet >= 0 ? "bg-gain-soft text-gain" : "bg-loss-soft text-loss")}>
+                          {dNet >= 0 ? "▲ +" : "▼ "}{fmtMoney(dNet)} vs first
+                        </span>
+                      )}
+                    </div>
+                    <p className={cn("mt-1 font-display text-lg font-bold tnum", g.kpis.net >= 0 ? "text-gain" : "text-loss")}>{fmtMoney(g.kpis.net, { sign: true })}</p>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-edge2">
+                      <div className="h-full rounded-full bg-gradient-to-r from-brand to-gain" style={{ width: `${Math.min(100, g.kpis.winRate)}%` }} />
+                    </div>
+                    <div className="mt-2 space-y-1 text-[11px] text-mut">
+                      <div className="flex justify-between"><span>Win rate</span><b className="text-ink tnum">{g.kpis.winRate.toFixed(1)}%{gi === 1 && <span className={dWr >= 0 ? "text-gain" : "text-loss"}> ({dWr >= 0 ? "+" : ""}{dWr.toFixed(1)})</span>}</b></div>
+                      <div className="flex justify-between"><span>Profit factor</span><b className="text-ink tnum">{g.kpis.pf.toFixed(2)}</b></div>
+                      <div className="flex justify-between"><span>Expectancy</span><b className="text-ink tnum">{fmtMoney(g.kpis.expectancy, { sign: true })}</b></div>
+                      <div className="flex justify-between"><span>Avg R</span><b className="text-ink tnum">{g.kpis.wlRatio.toFixed(2)}×</b></div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </Card>
@@ -170,45 +185,88 @@ export default function Reports({ trades }: { trades: Trade[] }) {
 function RollingChart({ data }: { data: { i: number; wr: number; avg: number }[] }) {
   if (data.length < 2) return <div className="grid h-full place-items-center text-xs text-mut">Need at least 2 trades.</div>;
   const maxAvg = Math.max(...data.map((d) => Math.abs(d.avg)), 1);
-  const wrPath = data.map((d, i) => {
-    const x = (i / Math.max(1, data.length - 1)) * 100;
-    const y = 88 - (d.wr / 100) * 76;
-    return `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
-  }).join(" ");
-  const avgPath = data.map((d, i) => {
-    const x = (i / Math.max(1, data.length - 1)) * 100;
-    const y = 50 - (d.avg / maxAvg) * 38;
-    return `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
-  }).join(" ");
+  const pt = (i: number, y: number) => `${(i / Math.max(1, data.length - 1)) * 100},${y}`;
+  const wrPts = data.map((d, i) => pt(i, 88 - (d.wr / 100) * 76));
+  const avgPts = data.map((d, i) => pt(i, 50 - (d.avg / maxAvg) * 38));
+  const line = (pts: string[]) => pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p}`).join(" ");
+  const last = data[data.length - 1];
+  const lastX = 100, lastWrY = 88 - (last.wr / 100) * 76, lastAvgY = 50 - (last.avg / maxAvg) * 38;
   return (
-    <svg viewBox="0 0 100 96" className="h-full w-full" preserveAspectRatio="none">
-      <line x1="0" y1="50" x2="100" y2="50" stroke="var(--edge)" strokeWidth="0.5" strokeDasharray="2 2" />
-      {[25, 50, 75].map((v) => (
-        <text key={v} x="1" y={`${88 - (v / 100) * 76 + 3}`} fontSize="4" fill="var(--faint)">{v}%</text>
-      ))}
-      <path d={avgPath} fill="none" stroke="var(--gain)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity={0.9} />
-      <path d={wrPath} fill="none" stroke="var(--brand)" strokeWidth="1.2" strokeDasharray="2.5 1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <div className="relative h-full">
+      <svg viewBox="0 0 100 96" className="h-full w-full" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="rollAvgFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--gain)" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="var(--gain)" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="rollWrFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="var(--brand)" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {[12, 30, 50, 70, 88].map((y) => (
+          <line key={y} x1="6" y1={y} x2="100" y2={y} stroke="var(--edge)" strokeWidth="0.4" opacity={0.7} />
+        ))}
+        <line x1="6" y1="50" x2="100" y2="50" stroke="var(--faint)" strokeWidth="0.5" strokeDasharray="2 2" opacity={0.8} />
+        {[25, 50, 75].map((v) => (
+          <text key={v} x="0.5" y={`${88 - (v / 100) * 76 + 2.5}`} fontSize="3.6" fontWeight="700" fill="var(--faint)">{v}%</text>
+        ))}
+        <path d={`${line(avgPts)} L 100 96 L 0 96 Z`} fill="url(#rollAvgFill)" />
+        <path d={`${line(wrPts)} L 100 96 L 0 96 Z`} fill="url(#rollWrFill)" />
+        <path d={line(avgPts)} fill="none" stroke="var(--gain)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={line(wrPts)} fill="none" stroke="var(--brand)" strokeWidth="1.6" strokeDasharray="3 1.6" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx={lastX} cy={lastAvgY} r="2.2" fill="var(--gain)" stroke="var(--panel)" strokeWidth="1" />
+        <circle cx={lastX} cy={lastWrY} r="2.2" fill="var(--brand)" stroke="var(--panel)" strokeWidth="1" />
+      </svg>
+      <div className="pointer-events-none absolute right-1 top-1 flex gap-1.5 text-[10px] font-bold">
+        <span className="rounded-md bg-gain-soft px-1.5 py-0.5 text-gain">avg {last.avg >= 0 ? "+" : ""}{Math.round(last.avg)}</span>
+        <span className="rounded-md bg-brand-soft px-1.5 py-0.5 text-brand">{last.wr.toFixed(0)}% WR</span>
+      </div>
+    </div>
   );
 }
 
 function ExplorerScatter({ trades }: { trades: Trade[] }) {
   const maxR = Math.max(...trades.map((t) => Math.abs(t.r)), 1);
   const maxPnl = Math.max(...trades.map((t) => Math.abs(t.pnl)), 1);
+  const wins = trades.filter((t) => t.pnl > 0).length;
   return (
-    <svg viewBox="0 0 100 96" className="h-full w-full" preserveAspectRatio="none">
-      <line x1="0" y1="48" x2="100" y2="48" stroke="var(--edge)" strokeWidth="0.5" strokeDasharray="2 2" />
-      {trades.map((t, i) => {
-        const x = trades.length === 1 ? 50 : (i / (trades.length - 1)) * 96 + 2;
-        const y = 48 - (t.r / maxR) * 40;
-        const r = 1.2 + (Math.abs(t.pnl) / maxPnl) * 2.2;
-        return (
-          <circle key={t.id} cx={x.toFixed(1)} cy={Math.max(3, Math.min(93, y)).toFixed(1)} r={r.toFixed(1)}
-            fill={t.pnl > 0 ? "var(--gain)" : t.pnl < 0 ? "var(--loss)" : "var(--faint)"} opacity={0.75}>
-            <title>{`${t.date} ${t.symbol} ${t.side} ${t.r.toFixed(1)}R ${fmtMoney(t.pnl, { sign: true })}`}</title>
-          </circle>
-        );
-      })}
-    </svg>
+    <div className="relative h-full">
+      <svg viewBox="0 0 100 96" className="h-full w-full" preserveAspectRatio="none">
+        <defs>
+          <radialGradient id="dotGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#fff" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#fff" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        <rect x="0" y="0" width="100" height="48" fill="var(--gain)" opacity="0.05" rx="2" />
+        <rect x="0" y="48" width="100" height="48" fill="var(--loss)" opacity="0.05" rx="2" />
+        {[24, 48, 72].map((y) => (
+          <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="var(--edge)" strokeWidth="0.4" opacity={0.7} />
+        ))}
+        <line x1="0" y1="48" x2="100" y2="48" stroke="var(--faint)" strokeWidth="0.6" />
+        <text x="1" y="6" fontSize="3.6" fontWeight="700" fill="var(--gain)">+{maxR.toFixed(1)}R</text>
+        <text x="1" y="92" fontSize="3.6" fontWeight="700" fill="var(--loss)">-{maxR.toFixed(1)}R</text>
+        {trades.map((t, i) => {
+          const x = trades.length === 1 ? 50 : (i / (trades.length - 1)) * 94 + 3;
+          const y = 48 - (t.r / maxR) * 40;
+          const r = 1.4 + (Math.abs(t.pnl) / maxPnl) * 2.4;
+          const fill = t.pnl > 0 ? "var(--gain)" : t.pnl < 0 ? "var(--loss)" : "var(--faint)";
+          return (
+            <g key={t.id} className="cursor-pointer">
+              <circle cx={x.toFixed(1)} cy={Math.max(4, Math.min(92, y)).toFixed(1)} r={(r + 1.6).toFixed(1)} fill={fill} opacity={0.18} />
+              <circle cx={x.toFixed(1)} cy={Math.max(4, Math.min(92, y)).toFixed(1)} r={r.toFixed(1)}
+                fill={fill} stroke="var(--panel)" strokeWidth="0.5" opacity={0.9}>
+                <title>{`${t.date} ${t.symbol} ${t.side} ${t.r.toFixed(1)}R ${fmtMoney(t.pnl, { sign: true })}`}</title>
+              </circle>
+            </g>
+          );
+        })}
+      </svg>
+      <div className="pointer-events-none absolute left-1 top-1 flex gap-1.5 text-[10px] font-bold">
+        <span className="rounded-md bg-gain-soft px-1.5 py-0.5 text-gain">{wins}W</span>
+        <span className="rounded-md bg-loss-soft px-1.5 py-0.5 text-loss">{trades.length - wins}L</span>
+      </div>
+    </div>
   );
 }
