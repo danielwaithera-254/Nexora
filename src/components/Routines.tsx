@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ListChecks, Plus, Trash2, EyeOff } from "lucide-react";
 import { Card, CardHead } from "./ui";
 import { cn } from "../utils/cn";
-import { vaultGet, vaultSet } from "../lib/vault";
+import { storeGet, storeSet } from "../lib/vault";
 
 type Phase = "pre" | "during" | "post";
 interface Routine {
@@ -42,17 +42,20 @@ function defaults(): Routine[] {
 
 export default function Routines() {
   const [routines, setRoutines] = useState<Routine[]>(() => {
-    try { const v = vaultGet<Routine[]>(R_KEY, []); return v.length ? v : defaults(); } catch { return defaults(); }
+    const v = storeGet<Routine[]>(R_KEY, []);
+    if (v.length) return v;
+    try { if (localStorage.getItem("nexora-routines-seeded")) return []; } catch {}
+    return defaults();
   });
-  const [checks, setChecks] = useState<Check>(() => { try { return vaultGet<Check>(C_KEY, {}); } catch { return {}; } });
-  const [misses, setMisses] = useState<Miss[]>(() => { try { return vaultGet<Miss[]>(M_KEY, []); } catch { return []; } });
+  const [checks, setChecks] = useState<Check>(() => storeGet<Check>(C_KEY, {}));
+  const [misses, setMisses] = useState<Miss[]>(() => storeGet<Miss[]>(M_KEY, []));
   const [tab, setTab] = useState<Phase | "misses">("pre");
   const [label, setLabel] = useState("");
   const [missForm, setMissForm] = useState({ date: iso(new Date()), symbol: "", reason: "", lesson: "" });
 
-  useEffect(() => { try { vaultSet(R_KEY, routines); } catch {} }, [routines]);
-  useEffect(() => { try { vaultSet(C_KEY, checks); } catch {} }, [checks]);
-  useEffect(() => { try { vaultSet(M_KEY, misses); } catch {} }, [misses]);
+  useEffect(() => { storeSet(R_KEY, routines); try { localStorage.setItem("nexora-routines-seeded", "1"); } catch {} }, [routines]);
+  useEffect(() => { storeSet(C_KEY, checks); }, [checks]);
+  useEffect(() => { storeSet(M_KEY, misses); }, [misses]);
 
   // last 13 weeks grid
   const weeks = useMemo(() => {

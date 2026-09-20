@@ -3,7 +3,7 @@ import { Building2, Plus, Download, Upload, Trash2, Wallet, TrendingUp, Clock, F
 import { Card, CardHead } from "./ui";
 import { cn } from "../utils/cn";
 import { fmtMoney } from "../lib/format";
-import { vaultGet, vaultSet } from "../lib/vault";
+import { storeGet, storeSet } from "../lib/vault";
 import {
   computePropStats, expectedNet, propCashTemplate,
   type PropAccount, type PropEntry, type PayoutRequest, type ExpenseCategory,
@@ -16,7 +16,8 @@ const PAYOUT_KEY = "nexora-prop-payouts";
 const CATS: ExpenseCategory[] = ["evaluation", "reset", "activation", "subscription", "platform", "market_data", "transfer", "other"];
 
 function load<T>(k: string, fb: T): T {
-  try { const v = vaultGet<T>(k, fb); return v ?? fb; } catch { return fb; }
+  const v = storeGet<T | null>(k, null);
+  return (v ?? fb) as T;
 }
 
 function demoAccounts(): PropAccount[] {
@@ -57,9 +58,9 @@ export default function PropFirms() {
   const accs = demo ? demoAccounts() : accounts;
   const ents = demo ? demoEntries() : entries;
 
-  useEffect(() => { if (!demo) { try { vaultSet(ACC_KEY, accounts); } catch {} } }, [accounts, demo]);
-  useEffect(() => { if (!demo) { try { vaultSet(ENTRY_KEY, entries); } catch {} } }, [entries, demo]);
-  useEffect(() => { if (!demo) { try { vaultSet(PAYOUT_KEY, payouts); } catch {} } }, [payouts, demo]);
+  useEffect(() => { if (!demo) storeSet(ACC_KEY, accounts); }, [accounts, demo]);
+  useEffect(() => { if (!demo) storeSet(ENTRY_KEY, entries); }, [entries, demo]);
+  useEffect(() => { if (!demo) storeSet(PAYOUT_KEY, payouts); }, [payouts, demo]);
 
   const firms = useMemo(() => ["All", ...Array.from(new Set(accs.map((a) => a.firm).filter(Boolean)))], [accs]);
   const fEnts = useMemo(() => ents.filter((e) => firmFilter === "All" || e.firm === firmFilter), [ents, firmFilter]);

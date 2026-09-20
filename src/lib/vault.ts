@@ -163,6 +163,37 @@ export function vaultSet(k: string, value: unknown) {
   schedulePersist();
 }
 
+/* ------------------------------------------------------------------ */
+/* Durable app storage — vault-first, localStorage-backed.              */
+/*                                                                      */
+/* The encrypted vault only persists to disk after an unlock, which the */
+/* app does not require. So for day-to-day feature state we dual-write: */
+/* vault (fast, in-memory, session-picked-up) + localStorage (survives  */
+/* reloads). Reads cascade vault → localStorage → fallback copy.        */
+/* ------------------------------------------------------------------ */
+
+export function storeGet<T>(k: string, fallback: T): T {
+  try {
+    const v = vaultGet<T | undefined>(k, undefined as unknown as T);
+    if (v !== undefined && v !== null) return v as T;
+  } catch {}
+  try {
+    const ls = localStorage.getItem(k);
+    if (ls != null) return JSON.parse(ls) as T;
+  } catch {}
+  try {
+    const fb = localStorage.getItem(`${k}-fallback`);
+    if (fb != null) return JSON.parse(fb) as T;
+  } catch {}
+  return fallback;
+}
+
+export function storeSet(k: string, value: unknown) {
+  try { vaultSet(k, value); } catch {}
+  try { localStorage.setItem(k, JSON.stringify(value)); } catch {}
+  try { localStorage.setItem(`${k}-fallback`, JSON.stringify(value)); } catch {}
+}
+
 const LEGACY_KEYS: Array<[string, string]> = [
   ["nexora-playbooks", "playbooks"],
   ["nexora-trade-reviews", "reviews"],

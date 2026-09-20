@@ -14,7 +14,7 @@ import {
   CalendarCheck,
   Minus,
 } from "lucide-react";
-import { vaultGet, vaultSet } from "../lib/vault";
+import { storeGet, storeSet } from "../lib/vault";
 
 interface Goal {
   id: string;
@@ -49,25 +49,33 @@ const TEMPLATES: { title: string; type: Goal["type"]; target: number; descriptio
 
 const VAULT_KEY = "nexora-goals";
 
+const SEED_FLAG = "nexora-goals-seeded";
+
 function loadGoals(): Goal[] {
   try {
-    const raw = vaultGet<any[]>(VAULT_KEY, []);
+    const raw = storeGet<any[]>(VAULT_KEY, []);
     if (!Array.isArray(raw)) return [];
-    return raw.map((g) => ({
-      id: String(g.id ?? `g-${Date.now()}`),
-      title: String(g.title ?? "Goal"),
-      type: (g.type ?? "custom") as Goal["type"],
-      target: Number(g.target) || 0,
-      current: Number(g.current) || 0,
-      unit: String(g.unit ?? GOAL_TYPES.find((t) => t.value === g.type)?.unit ?? ""),
-      description: String(g.description ?? ""),
-      deadline: String(g.deadline ?? ""),
-      completed: Boolean(g.completed ?? Number(g.current) >= Number(g.target)),
-      createdAt: Number(g.createdAt) || Date.now(),
-    }));
+    if (raw.length) return raw.map(normalizeGoal);
+    try { if (localStorage.getItem(SEED_FLAG)) return []; } catch {}
+    return [];
   } catch {
     return [];
   }
+}
+
+function normalizeGoal(g: any): Goal {
+  return {
+    id: String(g.id ?? `g-${Date.now()}`),
+    title: String(g.title ?? "Goal"),
+    type: (g.type ?? "custom") as Goal["type"],
+    target: Number(g.target) || 0,
+    current: Number(g.current) || 0,
+    unit: String(g.unit ?? GOAL_TYPES.find((t) => t.value === g.type)?.unit ?? ""),
+    description: String(g.description ?? ""),
+    deadline: String(g.deadline ?? ""),
+    completed: Boolean(g.completed ?? Number(g.current) >= Number(g.target)),
+    createdAt: Number(g.createdAt) || Date.now(),
+  };
 }
 
 function getDefaultGoals(): Goal[] {
@@ -92,7 +100,10 @@ export default function Goals() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<Goal>>({ title: "", type: "custom", target: 0, current: 0, description: "", deadline: "" });
 
-  useEffect(() => { try { vaultSet(VAULT_KEY, goals); } catch {} }, [goals]);
+  useEffect(() => {
+    storeSet(VAULT_KEY, goals);
+    try { localStorage.setItem(SEED_FLAG, "1"); } catch {}
+  }, [goals]);
 
   const done = goals.filter((g) => g.completed).length;
   const overall = goals.length ? Math.round(goals.reduce((s, g) => s + pct(g), 0) / goals.length) : 0;

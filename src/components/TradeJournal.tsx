@@ -18,7 +18,7 @@ import { Card, CardHead } from "./ui";
 import { cn } from "../utils/cn";
 import { fmtMoney } from "../lib/format";
 import type { Trade } from "../data/trades";
-import { vaultGet, vaultSet } from "../lib/vault";
+import { storeGet, storeSet } from "../lib/vault";
 
 interface JournalEntry {
   rating: number; // 1-5
@@ -58,10 +58,8 @@ function blankEntry(): JournalEntry {
 }
 
 function loadJournal(): JournalMap {
-  try {
-    const v = vaultGet<JournalMap>(VAULT_KEY, {});
-    return v && typeof v === "object" ? v : {};
-  } catch { return {}; }
+  const v = storeGet<JournalMap>(VAULT_KEY, {});
+  return v && typeof v === "object" ? v : {};
 }
 
 function completeness(e: JournalEntry): number {
@@ -85,7 +83,7 @@ export default function TradeJournal({ trades }: { trades: Trade[] }) {
   const [tab, setTab] = useState<"review" | "plan" | "psych">("review");
   const [savedTick, setSavedTick] = useState(0);
 
-  useEffect(() => { try { vaultSet(VAULT_KEY, journal); } catch {} }, [journal]);
+  useEffect(() => { storeSet(VAULT_KEY, journal); }, [journal]);
 
   const sorted = useMemo(() => [...trades].sort((a, b) => b.ts - a.ts), [trades]);
 
