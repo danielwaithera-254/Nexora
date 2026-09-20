@@ -12,7 +12,7 @@ import { Card, CardHead, ChartTip } from "./ui";
 import { cn } from "../utils/cn";
 import { fmtCompact, fmtDate, fmtDateShort, fmtMoney } from "../lib/format";
 import type { Trade } from "../data/trades";
-import { computeKpis, balanceSeries, weekdaySeries, monthlySeries, withRisk, dailyMap, cumSeries } from "../lib/metrics";
+import { computeKpis, balanceSeries, weekdaySeries, monthlySeries, withRisk, dailyMap, cumSeries, radarScores } from "../lib/metrics";
 import RadarCard from "./charts/RadarCard";
 import CumPnLCard from "./charts/CumPnLCard";
 import HeatmapCard from "./charts/HeatmapCard";
@@ -56,16 +56,7 @@ export default function Analytics({ trades, filters }: AnalyticsProps) {
     let a = 0;
     return days.map((d) => { a += m.get(d)!; return { date: d, value: Math.round(a), daily: m.get(d)! }; });
   }, [current]);
-  const scores = useMemo(() => ({
-    overall: 81,
-    axes: [
-      { axis: "Profit Factor", value: 72 },
-      { axis: "Win Rate", value: 56 },
-      { axis: "Risk Control", value: 68 },
-      { axis: "Discipline", value: 74 },
-      { axis: "Consistency", value: 61 },
-    ],
-  }), []);
+  const scores = useMemo(() => radarScores(k), [k]);
   const donut = useMemo(() => [
     { name: "Winners", value: k.wins, tone: "gain" as const },
     { name: "Losers", value: k.losses, tone: "loss" as const },

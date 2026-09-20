@@ -84,59 +84,12 @@ export function loadNotebook(): EmotionEntry[] {
   }
 }
 
-function hash(s: string) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h;
+/** No fabricated entries — only entries the user actually writes are shown.
+ *  (Previously this invented moods/notes from P&L; now the mood-vs-P&L chart
+ *  reflects real journal input only.) */
+export function seedNotebook(_trades: Trade[]): EmotionEntry[] {
+  return [];
 }
-
-/** Seed entries that correlate with real results, so the mood-vs-P&L chart tells a true story. */
-export function seedNotebook(trades: Trade[]): EmotionEntry[] {
-  const byDay = new Map<string, number>();
-  for (const t of trades) byDay.set(t.date, (byDay.get(t.date) ?? 0) + t.pnl);
-  const days = [...byDay.keys()].sort().slice(-26);
-
-  const good: EmotionKey[] = ["focused", "confident", "calm", "happy", "euphoric"];
-  const bad: EmotionKey[] = ["anxious", "fomo", "tilted", "greedy", "revenge"];
-  const flat: EmotionKey[] = ["bored", "hesitant", "calm"];
-
-  return days.map((date, i) => {
-    const pnl = byDay.get(date)!;
-    const h = hash(date);
-    const pool = pnl > 400 ? good : pnl < -300 ? bad : flat;
-    const primary = pool[h % pool.length];
-    const tags: EmotionKey[] = [];
-    const extra = pnl < 0 ? bad : good;
-    for (let n = 0; n < 1 + (h % 2); n++) {
-      const cand = extra[(h + n * 2) % extra.length];
-      if (cand !== primary && !tags.includes(cand)) tags.push(cand);
-    }
-    return {
-      id: `N-${String(i + 1).padStart(4, "0")}`,
-      date,
-      ts: new Date(date + "T00:00:00").getTime(),
-      primary,
-      tags,
-      intensity: Math.max(2, Math.min(10, Math.round(Math.abs(pnl) / 220) + 3)),
-      note: NOTES[primary],
-    };
-  });
-}
-
-const NOTES: Record<EmotionKey, string> = {
-  focused: "Took only A+ setups. No chasing, no widening stops.",
-  confident: "Stuck to the plan and let the winners run to target.",
-  calm: "Slow tape, stayed patient. No forced trades today.",
-  happy: "Green day on the board — now protect the cushion.",
-  euphoric: "Big day. Watch for over-confidence in the next session.",
-  anxious: "Choppy conditions, scaled down to half size.",
-  fomo: "Entered a late breakout without confirmation. Noted.",
-  tilted: "Chased after a stop-out. Shut it down after the second loss.",
-  greedy: "Moved my target instead of taking profit. Lesson logged.",
-  hesitant: "Missed two clean entries waiting for perfect confirmation.",
-  bored: "Flat day, sat on my hands. Sometimes that is the trade.",
-  revenge: "Re-entered immediately after a stop. Review tomorrow.",
-};
 
 /* ================================ page ================================ */
 export default function Notebook({ trades }: { trades: Trade[] }) {
