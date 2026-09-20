@@ -1,7 +1,16 @@
 ﻿import { useMemo, useState } from "react";
-import { Card, CardHead } from "./ui";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { Card, CardHead, ChartTip } from "./ui";
 import { cn } from "../utils/cn";
-import { fmtMoney } from "../lib/format";
+import { fmtCompact, fmtDate, fmtDateShort, fmtMoney } from "../lib/format";
 import type { Trade } from "../data/trades";
 import { computeKpis, balanceSeries, weekdaySeries, monthlySeries, withRisk, dailyMap, cumSeries } from "../lib/metrics";
 import RadarCard from "./charts/RadarCard";
@@ -417,18 +426,56 @@ function RiskStat({ label, value, tone, sub }: { label: string; value: string; t
 }
 
 function DrawdownChart({ curve }: { curve: { date: string; dd: number }[] }) {
+  const ticks = useMemo(() => {
+    if (curve.length < 2) return [];
+    const step = Math.max(1, Math.floor(curve.length / 5));
+    return curve.filter((_, i) => i % step === 0).map((d) => d.date);
+  }, [curve]);
   if (!curve.length) return <div className="grid h-full place-items-center text-xs text-mut">No drawdown data.</div>;
   const max = Math.max(...curve.map((d) => d.dd), 1);
-  const d = curve.map((p, i) => {
-    const x = (i / Math.max(1, curve.length - 1)) * 100;
-    const y = 4 + (1 - p.dd / max) * 80;
-    return `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
-  }).join(" ");
   return (
-    <svg viewBox="0 0 100 88" className="h-full w-full" preserveAspectRatio="none">
-      <path d={`${d} L 100 88 L 0 88 Z`} fill="var(--loss)" opacity={0.12} />
-      <path d={d} fill="none" stroke="var(--loss)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={curve} margin={{ top: 12, right: 8, left: -14, bottom: 0 }}>
+        <defs>
+          <linearGradient id="ddFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--loss)" stopOpacity={0.3} />
+            <stop offset="100%" stopColor="var(--loss)" stopOpacity={0.02} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid stroke="var(--edge2)" vertical={false} />
+        <XAxis
+          dataKey="date"
+          ticks={ticks}
+          tickFormatter={fmtDateShort}
+          tick={{ fontSize: 9.5, fill: "var(--faint)" }}
+          axisLine={false}
+          tickLine={false}
+        />
+        <YAxis
+          domain={[0, max * 1.1]}
+          tickFormatter={(v) => fmtCompact(v)}
+          tick={{ fontSize: 9.5, fill: "var(--faint)" }}
+          axisLine={false}
+          tickLine={false}
+          width={52}
+        />
+        <Tooltip
+          content={<ChartTip fmt={(v: number) => fmtMoney(v)} />}
+          labelFormatter={(l) => fmtDate(String(l))}
+          cursor={{ stroke: "var(--faint)", strokeDasharray: "3 3" }}
+        />
+        <Area
+          type="monotone"
+          dataKey="dd"
+          name="Drawdown"
+          stroke="var(--loss)"
+          strokeWidth={2.2}
+          fill="url(#ddFill)"
+          activeDot={{ r: 4, strokeWidth: 0 }}
+          animationDuration={800}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
   );
 }
 

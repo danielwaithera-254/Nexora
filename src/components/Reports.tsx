@@ -1,7 +1,20 @@
 import { useMemo, useState } from "react";
-import { Card, CardHead } from "./ui";
+import {
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Scatter,
+  ScatterChart,
+  Tooltip,
+  XAxis,
+  YAxis,
+  ZAxis,
+} from "recharts";
+import { Card, CardHead, ChartTip } from "./ui";
 import { cn } from "../utils/cn";
-import { fmtMoney } from "../lib/format";
+import { fmtCompact, fmtMoney } from "../lib/format";
 import type { Trade } from "../data/trades";
 import { computeKpis } from "../lib/metrics";
 
@@ -184,40 +197,74 @@ export default function Reports({ trades }: { trades: Trade[] }) {
 
 function RollingChart({ data }: { data: { i: number; wr: number; avg: number }[] }) {
   if (data.length < 2) return <div className="grid h-full place-items-center text-xs text-mut">Need at least 2 trades.</div>;
-  const maxAvg = Math.max(...data.map((d) => Math.abs(d.avg)), 1);
-  const pt = (i: number, y: number) => `${(i / Math.max(1, data.length - 1)) * 100},${y}`;
-  const wrPts = data.map((d, i) => pt(i, 88 - (d.wr / 100) * 76));
-  const avgPts = data.map((d, i) => pt(i, 50 - (d.avg / maxAvg) * 38));
-  const line = (pts: string[]) => pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p}`).join(" ");
   const last = data[data.length - 1];
-  const lastX = 100, lastWrY = 88 - (last.wr / 100) * 76, lastAvgY = 50 - (last.avg / maxAvg) * 38;
   return (
     <div className="relative h-full">
-      <svg viewBox="0 0 100 96" className="h-full w-full" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="rollAvgFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--gain)" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="var(--gain)" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id="rollWrFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.18" />
-            <stop offset="100%" stopColor="var(--brand)" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {[12, 30, 50, 70, 88].map((y) => (
-          <line key={y} x1="6" y1={y} x2="100" y2={y} stroke="var(--edge)" strokeWidth="0.4" opacity={0.7} />
-        ))}
-        <line x1="6" y1="50" x2="100" y2="50" stroke="var(--faint)" strokeWidth="0.5" strokeDasharray="2 2" opacity={0.8} />
-        {[25, 50, 75].map((v) => (
-          <text key={v} x="0.5" y={`${88 - (v / 100) * 76 + 2.5}`} fontSize="3.6" fontWeight="700" fill="var(--faint)">{v}%</text>
-        ))}
-        <path d={`${line(avgPts)} L 100 96 L 0 96 Z`} fill="url(#rollAvgFill)" />
-        <path d={`${line(wrPts)} L 100 96 L 0 96 Z`} fill="url(#rollWrFill)" />
-        <path d={line(avgPts)} fill="none" stroke="var(--gain)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        <path d={line(wrPts)} fill="none" stroke="var(--brand)" strokeWidth="1.6" strokeDasharray="3 1.6" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx={lastX} cy={lastAvgY} r="2.2" fill="var(--gain)" stroke="var(--panel)" strokeWidth="1" />
-        <circle cx={lastX} cy={lastWrY} r="2.2" fill="var(--brand)" stroke="var(--panel)" strokeWidth="1" />
-      </svg>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 12, right: 8, left: -14, bottom: 0 }}>
+          <defs>
+            <linearGradient id="rollAvgFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--gain)" stopOpacity={0.22} />
+              <stop offset="100%" stopColor="var(--gain)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke="var(--edge2)" vertical={false} />
+          <XAxis
+            dataKey="i"
+            tickFormatter={(v) => `#${Number(v) + 1}`}
+            tick={{ fontSize: 9.5, fill: "var(--faint)" }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            yAxisId="avg"
+            tickFormatter={(v) => fmtCompact(v)}
+            tick={{ fontSize: 9.5, fill: "var(--faint)" }}
+            axisLine={false}
+            tickLine={false}
+            width={52}
+          />
+          <YAxis
+            yAxisId="wr"
+            orientation="right"
+            domain={[0, 100]}
+            tickFormatter={(v) => `${v}%`}
+            tick={{ fontSize: 9.5, fill: "var(--faint)" }}
+            axisLine={false}
+            tickLine={false}
+            width={44}
+          />
+          <Tooltip
+            content={<ChartTip fmt={(v: number) => (typeof v === "number" && v <= 100 ? `${v.toFixed(0)}%` : fmtMoney(v, { sign: true }))} />}
+            labelFormatter={(l) => `Trade #${Number(l) + 1}`}
+            cursor={{ stroke: "var(--faint)", strokeDasharray: "3 3" }}
+          />
+          <Line
+            yAxisId="avg"
+            type="monotone"
+            dataKey="avg"
+            name="Avg P&L"
+            stroke="var(--gain)"
+            strokeWidth={2.2}
+            fill="url(#rollAvgFill)"
+            dot={false}
+            activeDot={{ r: 4, strokeWidth: 0 }}
+            animationDuration={800}
+          />
+          <Line
+            yAxisId="wr"
+            type="monotone"
+            dataKey="wr"
+            name="Win rate"
+            stroke="var(--brand)"
+            strokeWidth={2.2}
+            strokeDasharray="6 3"
+            dot={false}
+            activeDot={{ r: 4, strokeWidth: 0 }}
+            animationDuration={800}
+          />
+        </LineChart>
+      </ResponsiveContainer>
       <div className="pointer-events-none absolute right-1 top-1 flex gap-1.5 text-[10px] font-bold">
         <span className="rounded-md bg-gain-soft px-1.5 py-0.5 text-gain">avg {last.avg >= 0 ? "+" : ""}{Math.round(last.avg)}</span>
         <span className="rounded-md bg-brand-soft px-1.5 py-0.5 text-brand">{last.wr.toFixed(0)}% WR</span>
@@ -227,42 +274,66 @@ function RollingChart({ data }: { data: { i: number; wr: number; avg: number }[]
 }
 
 function ExplorerScatter({ trades }: { trades: Trade[] }) {
-  const maxR = Math.max(...trades.map((t) => Math.abs(t.r)), 1);
-  const maxPnl = Math.max(...trades.map((t) => Math.abs(t.pnl)), 1);
+  const points = trades.map((t, i) => ({
+    x: i + 1,
+    r: Math.round(t.r * 100) / 100,
+    size: Math.abs(t.pnl),
+    date: t.date,
+    symbol: t.symbol,
+    side: t.side,
+    pnl: t.pnl,
+  }));
   const wins = trades.filter((t) => t.pnl > 0).length;
   return (
     <div className="relative h-full">
-      <svg viewBox="0 0 100 96" className="h-full w-full" preserveAspectRatio="none">
-        <defs>
-          <radialGradient id="dotGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#fff" stopOpacity="0.9" />
-            <stop offset="100%" stopColor="#fff" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        <rect x="0" y="0" width="100" height="48" fill="var(--gain)" opacity="0.05" rx="2" />
-        <rect x="0" y="48" width="100" height="48" fill="var(--loss)" opacity="0.05" rx="2" />
-        {[24, 48, 72].map((y) => (
-          <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="var(--edge)" strokeWidth="0.4" opacity={0.7} />
-        ))}
-        <line x1="0" y1="48" x2="100" y2="48" stroke="var(--faint)" strokeWidth="0.6" />
-        <text x="1" y="6" fontSize="3.6" fontWeight="700" fill="var(--gain)">+{maxR.toFixed(1)}R</text>
-        <text x="1" y="92" fontSize="3.6" fontWeight="700" fill="var(--loss)">-{maxR.toFixed(1)}R</text>
-        {trades.map((t, i) => {
-          const x = trades.length === 1 ? 50 : (i / (trades.length - 1)) * 94 + 3;
-          const y = 48 - (t.r / maxR) * 40;
-          const r = 1.4 + (Math.abs(t.pnl) / maxPnl) * 2.4;
-          const fill = t.pnl > 0 ? "var(--gain)" : t.pnl < 0 ? "var(--loss)" : "var(--faint)";
-          return (
-            <g key={t.id} className="cursor-pointer">
-              <circle cx={x.toFixed(1)} cy={Math.max(4, Math.min(92, y)).toFixed(1)} r={(r + 1.6).toFixed(1)} fill={fill} opacity={0.18} />
-              <circle cx={x.toFixed(1)} cy={Math.max(4, Math.min(92, y)).toFixed(1)} r={r.toFixed(1)}
-                fill={fill} stroke="var(--panel)" strokeWidth="0.5" opacity={0.9}>
-                <title>{`${t.date} ${t.symbol} ${t.side} ${t.r.toFixed(1)}R ${fmtMoney(t.pnl, { sign: true })}`}</title>
-              </circle>
-            </g>
-          );
-        })}
-      </svg>
+      <ResponsiveContainer width="100%" height="100%">
+        <ScatterChart margin={{ top: 12, right: 8, left: -14, bottom: 0 }}>
+          <CartesianGrid stroke="var(--edge2)" />
+          <XAxis
+            type="number"
+            dataKey="x"
+            name="Trade"
+            tick={{ fontSize: 9.5, fill: "var(--faint)" }}
+            axisLine={false}
+            tickLine={false}
+            tickFormatter={(v) => `#${v}`}
+          />
+          <YAxis
+            type="number"
+            dataKey="r"
+            name="R"
+            tickFormatter={(v) => `${v}R`}
+            tick={{ fontSize: 9.5, fill: "var(--faint)" }}
+            axisLine={false}
+            tickLine={false}
+            width={52}
+          />
+          <ZAxis type="number" dataKey="size" range={[24, 160]} />
+          <Tooltip
+            cursor={{ stroke: "var(--faint)", strokeDasharray: "3 3" }}
+            content={({ active, payload }) => {
+              const p = payload?.[0]?.payload;
+              if (!active || !p) return null;
+              return (
+                <div className="rounded-xl border border-edge bg-panel/95 px-3 py-2 text-xs shadow-[var(--shadow-lg)] backdrop-blur-md">
+                  <div className="font-display text-[11.5px] font-bold text-ink">{p.date} · {p.symbol} {p.side}</div>
+                  <div className="mt-1 flex items-center gap-2 tnum">
+                    <span className="text-[11px] text-mut">{Number(p.r).toFixed(1)}R</span>
+                    <span className="text-[11.5px] font-bold" style={{ color: p.pnl >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                      {fmtMoney(p.pnl, { sign: true })}
+                    </span>
+                  </div>
+                </div>
+              );
+            }}
+          />
+          <Scatter data={points} name="Trades" animationDuration={800}>
+            {points.map((p, i) => (
+              <Cell key={i} fill={p.pnl > 0 ? "var(--gain)" : p.pnl < 0 ? "var(--loss)" : "var(--faint)"} />
+            ))}
+          </Scatter>
+        </ScatterChart>
+      </ResponsiveContainer>
       <div className="pointer-events-none absolute left-1 top-1 flex gap-1.5 text-[10px] font-bold">
         <span className="rounded-md bg-gain-soft px-1.5 py-0.5 text-gain">{wins}W</span>
         <span className="rounded-md bg-loss-soft px-1.5 py-0.5 text-loss">{trades.length - wins}L</span>
