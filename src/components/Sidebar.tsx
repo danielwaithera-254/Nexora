@@ -16,6 +16,8 @@ import {
   NotebookPen,
   BookOpen,
   Flame,
+  Building2,
+  ClipboardList,
   PanelLeftClose,
   PanelLeftOpen,
   ChevronLeft,
@@ -33,6 +35,9 @@ export type PageId =
   | "strategies"
   | "calendar"
   | "goals"
+  | "propfirms"
+  | "routines"
+  | "reports"
   | "settings";
 
 interface NavItem {
@@ -53,6 +58,9 @@ const NAV: NavItem[] = [
   { id: "strategies", name: "Strategies", icon: Target, section: "analytics" },
   { id: "calendar", name: "Calendar", icon: Calendar, section: "habits" },
   { id: "goals", name: "Goals", icon: TargetIcon, section: "habits" },
+  { id: "routines", name: "Routines", icon: ListChecks, section: "habits" },
+  { id: "propfirms", name: "Prop Firms", icon: Building2, section: "workspace" },
+  { id: "reports", name: "Reports", icon: ClipboardList, section: "analytics" },
   { id: "settings", name: "Settings", icon: Settings, section: "settings" },
 ];
 

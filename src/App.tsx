@@ -19,6 +19,9 @@ import Analytics from "./components/Analytics";
 import TradeJournal from "./components/TradeJournal";
 import Strategies from "./components/Strategies";
 import Goals from "./components/Goals";
+import PropFirms from "./components/PropFirms";
+import Routines from "./components/Routines";
+import Reports from "./components/Reports";
 import Settings from "./components/Settings";
 import { Reveal } from "./components/ui";
 import {
@@ -70,6 +73,9 @@ type PageId =
   | "strategies"
   | "calendar"
   | "goals"
+  | "propfirms"
+  | "routines"
+  | "reports"
   | "settings";
 
 interface Toast {
@@ -483,6 +489,12 @@ export default function App() {
         return <Reveal><Calendar trades={calTrades} /></Reveal>;
       case "goals":
         return <Reveal><Goals /></Reveal>;
+      case "propfirms":
+        return <Reveal><PropFirms /></Reveal>;
+      case "routines":
+        return <Reveal><Routines /></Reveal>;
+      case "reports":
+        return <Reveal><Reports trades={current} /></Reveal>;
       case "settings":
         return <Reveal><Settings cloudAccount={CLOUD_ENABLED && !offline ? {
           email: session?.user?.email ?? null,
@@ -526,6 +538,9 @@ export default function App() {
     strategies: "Strategies",
     calendar: "Calendar",
     goals: "Goals",
+    propfirms: "Prop Firms",
+    routines: "Routines",
+    reports: "Reports",
     settings: "Settings",
   };
 
