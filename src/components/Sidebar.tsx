@@ -11,7 +11,6 @@ import {
   Target as TargetIcon,
   Settings,
   Plus,
-  Settings as SettingsIcon,
   X,
   NotebookPen,
   BookOpen,
@@ -232,13 +231,13 @@ export default function Sidebar({
                   <p className="truncate text-[12px] font-bold text-white">Jordan Tate</p>
                   <p className="text-[10px] text-white/55">Funded · 3 accounts</p>
                 </div>
-                <button
-                  onClick={() => onNavigate("settings")}
-                  className="ml-auto rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
-                  aria-label="Settings"
-                >
-                  <SettingsIcon size={14} />
-                </button>
+            <button
+              onClick={() => onNavigate("settings")}
+              className="ml-auto rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+              aria-label="Settings"
+            >
+              <Settings size={14} />
+            </button>
               </>
             )}
           </div>

@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect } from "react";
 import { Card, CardHead } from "./ui";
 import { cn } from "../utils/cn";
-import { Save, User, Moon, Sun, ShieldCheck, Lock, Download, Upload, KeyRound, CheckCircle2, AlertTriangle, Bell, Palette, Database, Globe, Layers, Cloud, LogOut, RefreshCw } from "lucide-react";
+import { Save, User, Moon, Sun, ShieldCheck, Lock, Download, Upload, KeyRound, CheckCircle2, AlertTriangle, Bell, Palette, Database, Globe, Layers, Cloud, LogOut, RefreshCw, Trash2 } from "lucide-react";
 import { vaultGet, vaultSet } from "../lib/vault";
 
 export interface CloudAccountInfo {
@@ -232,7 +232,7 @@ export default function Settings({ dark = false, onToggleDark, cloudAccount }: S
             <div>
               <label className="block text-sm font-medium text-mut mb-1">Timezone</label>
               <select value={timezone} onChange={e => setTimezone(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-edge bg-panel text-ink focus:border-brand focus:outline-none">
-                {Intl.supportedValuesOf("timeZone").map(tz => <option key={tz} value={tz}>{tz}</option>)}
+                {(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [Intl.DateTimeFormat().resolvedOptions().timeZone]).map(tz => <option key={tz} value={tz}>{tz}</option>)}
               </select>
             </div>
           </div>
