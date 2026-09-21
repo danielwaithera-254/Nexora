@@ -1,9 +1,12 @@
 import { useMemo, useState } from "react";
 import {
+  Area,
+  AreaChart,
   CartesianGrid,
   Cell,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Scatter,
   ScatterChart,
@@ -18,10 +21,61 @@ import { fmtCompact, fmtMoney } from "../lib/format";
 import type { Trade } from "../data/trades";
 import { computeKpis } from "../lib/metrics";
 
+function mulberry32(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 export default function Reports({ trades }: { trades: Trade[] }) {
   const [window, setWindow] = useState<10 | 20 | 50>(20);
+  const [simSteps, setSimSteps] = useState<25 | 50 | 100>(50);
 
   const sorted = useMemo(() => [...trades].sort((a, b) => a.ts - b.ts), [trades]);
+
+  // Monte Carlo: bootstrap-resample actual trade P&Ls into future paths
+  const monteCarlo = useMemo(() => {
+    if (sorted.length < 5) return null;
+    const pnls = sorted.map((t) => t.pnl);
+    let seed = 7;
+    for (const p of pnls) seed = (Math.imul(31, seed) + Math.round(p * 100)) | 0;
+    const rand = mulberry32(seed);
+    const PATHS = 400;
+    const running = new Array<number>(PATHS).fill(0);
+    const peaks = new Array<number>(PATHS).fill(0);
+    const worstDd = new Array<number>(PATHS).fill(0);
+    // current realized max drawdown — ruin = drawing down deeper than this
+    let acc = 0, peak = 0, curMaxDd = 0;
+    for (const t of sorted) {
+      acc += t.pnl;
+      peak = Math.max(peak, acc);
+      curMaxDd = Math.max(curMaxDd, peak - acc);
+    }
+    const bands: { step: number; p5: number; p25: number; p50: number; p75: number; p95: number }[] = [];
+    let finals: number[] = [];
+    for (let s = 0; s < simSteps; s++) {
+      const vals: number[] = new Array(PATHS);
+      for (let p = 0; p < PATHS; p++) {
+        running[p] += pnls[Math.floor(rand() * pnls.length)];
+        peaks[p] = Math.max(peaks[p], running[p]);
+        worstDd[p] = Math.max(worstDd[p], peaks[p] - running[p]);
+        vals[p] = running[p];
+      }
+      vals.sort((a, b) => a - b);
+      const q = (x: number) => vals[Math.min(PATHS - 1, Math.max(0, Math.floor(x * PATHS)))];
+      bands.push({ step: s + 1, p5: Math.round(q(0.05)), p25: Math.round(q(0.25)), p50: Math.round(q(0.5)), p75: Math.round(q(0.75)), p95: Math.round(q(0.95)) });
+      if (s === simSteps - 1) finals = vals;
+    }
+    const last = bands[bands.length - 1];
+    const profit = finals.filter((v) => v > 0).length / PATHS;
+    const ruined = worstDd.filter((d) => d > curMaxDd).length / PATHS;
+    return { bands, median: last.p50, p5: last.p5, p95: last.p95, profit, ruined, curMaxDd };
+  }, [sorted, simSteps]);
 
   // rolling win rate + rolling avg P&L over last N trades
   const rolling = useMemo(() => {
@@ -115,6 +169,51 @@ export default function Reports({ trades }: { trades: Trade[] }) {
           <h3 className="text-sm font-bold text-ink">Trade explorer</h3>
           <p className="text-[11px] text-faint">Each dot is a trade — x: sequence, y: R multiple, size: |P&L| · hover for detail</p>
           <div className="mt-2 min-h-0 flex-1"><ExplorerScatter trades={sorted} /></div>
+        </Card>
+      </div>
+
+      {/* monte carlo simulation */}
+      <div className="h-[420px]">
+        <Card className="flex h-full flex-col p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-bold text-ink">Monte Carlo simulation</h3>
+              <p className="text-[11px] text-faint">400 bootstrapped futures from your actual trade P&Ls · reshuffled order, same edge</p>
+            </div>
+            <div className="flex items-center gap-1 rounded-xl bg-panel2 p-1">
+              {([25, 50, 100] as const).map((n) => (
+                <button key={n} onClick={() => setSimSteps(n)} className={cn("rounded-lg px-3 py-1.5 text-xs font-bold", simSteps === n ? "bg-brand text-white shadow" : "text-mut hover:text-ink")}>
+                  {n} trades
+                </button>
+              ))}
+            </div>
+          </div>
+          {!monteCarlo ? (
+            <p className="grid flex-1 place-items-center text-xs text-mut">Need at least 5 trades to simulate.</p>
+          ) : (
+            <>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="rounded-xl border border-edge bg-panel2 p-2.5 text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-mut">Median outcome</p>
+                  <p className={cn("mt-0.5 font-display text-base font-bold tnum", monteCarlo.median >= 0 ? "text-gain" : "text-loss")}>{fmtMoney(monteCarlo.median, { sign: true })}</p>
+                </div>
+                <div className="rounded-xl border border-edge bg-panel2 p-2.5 text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-mut">P(profit)</p>
+                  <p className="mt-0.5 font-display text-base font-bold tnum text-brand">{(monteCarlo.profit * 100).toFixed(0)}%</p>
+                </div>
+                <div className="rounded-xl border border-edge bg-panel2 p-2.5 text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-mut">90% range</p>
+                  <p className="mt-0.5 font-display text-base font-bold tnum text-ink">{fmtMoney(monteCarlo.p5)} → {fmtMoney(monteCarlo.p95)}</p>
+                </div>
+                <div className="rounded-xl border border-edge bg-panel2 p-2.5 text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-mut">Deeper-DD risk</p>
+                  <p className={cn("mt-0.5 font-display text-base font-bold tnum", monteCarlo.ruined > 0.5 ? "text-loss" : "text-gain")}>{(monteCarlo.ruined * 100).toFixed(0)}%</p>
+                </div>
+              </div>
+              <div className="mt-2 min-h-0 flex-1"><MonteCarloChart bands={monteCarlo.bands} /></div>
+              <p className="mt-1 text-center text-[10px] text-faint">Cone = 5–95th percentile · inner band = 25–75th · line = median path</p>
+            </>
+          )}
         </Card>
       </div>
 
@@ -270,6 +369,62 @@ function RollingChart({ data }: { data: { i: number; wr: number; avg: number }[]
         <span className="rounded-md bg-brand-soft px-1.5 py-0.5 text-brand">{last.wr.toFixed(0)}% WR</span>
       </div>
     </div>
+  );
+}
+
+function MonteCarloChart({ bands }: { bands: { step: number; p5: number; p25: number; p50: number; p75: number; p95: number }[] }) {
+  if (bands.length < 2) return <div className="grid h-full place-items-center text-xs text-mut">Need at least 2 simulated steps.</div>;
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={bands} margin={{ top: 12, right: 8, left: -14, bottom: 0 }}>
+        <defs>
+          <linearGradient id="mcOuter" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--brand)" stopOpacity={0.14} />
+            <stop offset="100%" stopColor="var(--brand)" stopOpacity={0.02} />
+          </linearGradient>
+          <linearGradient id="mcInner" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--brand)" stopOpacity={0.28} />
+            <stop offset="100%" stopColor="var(--brand)" stopOpacity={0.05} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid stroke="var(--edge2)" vertical={false} />
+        <XAxis
+          dataKey="step"
+          tickFormatter={(v) => `#${v}`}
+          tick={{ fontSize: 9.5, fill: "var(--faint)" }}
+          axisLine={false}
+          tickLine={false}
+        />
+        <YAxis
+          tickFormatter={(v) => fmtCompact(v)}
+          tick={{ fontSize: 9.5, fill: "var(--faint)" }}
+          axisLine={false}
+          tickLine={false}
+          width={52}
+        />
+        <Tooltip
+          content={<ChartTip fmt={(v: number) => fmtMoney(v, { sign: true })} />}
+          labelFormatter={(l) => `After trade #${l}`}
+          cursor={{ stroke: "var(--faint)", strokeDasharray: "3 3" }}
+        />
+        <ReferenceLine y={0} stroke="var(--faint)" strokeDasharray="4 4" />
+        <Area type="monotone" dataKey="p95" name="95th pct" stroke="none" fill="url(#mcOuter)" animationDuration={800} />
+        <Area type="monotone" dataKey="p75" name="75th pct" stroke="none" fill="url(#mcInner)" animationDuration={800} />
+        <Area type="monotone" dataKey="p25" name="25th pct" stroke="none" fill="url(#mcInner)" animationDuration={800} />
+        <Area type="monotone" dataKey="p5" name="5th pct" stroke="none" fill="url(#mcOuter)" animationDuration={800} />
+        <Area
+          type="monotone"
+          dataKey="p50"
+          name="Median"
+          stroke="var(--brand)"
+          strokeWidth={2.4}
+          fill="none"
+          dot={false}
+          activeDot={{ r: 4, strokeWidth: 0 }}
+          animationDuration={800}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
   );
 }
 
