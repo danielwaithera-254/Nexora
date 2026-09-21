@@ -24,9 +24,10 @@ interface AnalyticsProps {
   trades: Trade[];
   filters: { range: string; strategy: string; account: string };
   onFiltersChange: (f: Partial<{ range: string; strategy: string; account: string }>) => void;
+  startCapital: number;
 }
 
-export default function Analytics({ trades, filters }: AnalyticsProps) {
+export default function Analytics({ trades, filters, startCapital }: AnalyticsProps) {
   const [period, setPeriod] = useState<"week" | "month" | "all">("all");
   const [section, setSection] = useState<Section>("overview");
   const [hoverDate, setHoverDate] = useState<string | null>(null);
@@ -46,7 +47,7 @@ export default function Analytics({ trades, filters }: AnalyticsProps) {
   }, [trades, period, filters.strategy, filters.account]);
 
   const k = useMemo(() => withRisk(computeKpis(current), current), [current]);
-  const bal = useMemo(() => balanceSeries(current), [current]);
+  const bal = useMemo(() => balanceSeries(current, startCapital), [current, startCapital]);
   const wd = useMemo(() => weekdaySeries(current), [current]);
   const monthly = useMemo(() => monthlySeries(current), [current]);
   const cum = useMemo(() => {

@@ -480,7 +480,7 @@ export default function App() {
       case "trades":
         return <Reveal><Trades trades={current} filters={filters} onFiltersChange={setFilters} onImport={() => fileRef.current?.click()} /></Reveal>;
       case "analytics":
-        return <Reveal><Analytics trades={current} filters={filters} onFiltersChange={setFilters} /></Reveal>;
+        return <Reveal><Analytics trades={current} filters={filters} onFiltersChange={setFilters} startCapital={startCapital} /></Reveal>;
       case "tradejournal":
         return <Reveal><TradeJournal trades={current} /></Reveal>;
       case "strategies":
