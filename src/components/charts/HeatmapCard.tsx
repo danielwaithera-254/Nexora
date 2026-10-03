@@ -17,30 +17,39 @@ export default function HeatmapCard({ trades }: { trades: Trade[] }) {
     const map = dailyMap(trades);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    // anchor the window so the LAST column always contains today,
+    // then align the start back to Monday for clean Mon..Sun columns
     const start = new Date(today);
-    start.setDate(start.getDate() - 83);
+    start.setDate(start.getDate() - (12 * 7 - 1));
     start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
 
-    let mx = 1;
-    let sum = 0;
-    const wks: { key: string; inFuture: boolean }[][] = [];
+    const all: { key: string; inFuture: boolean }[][] = [];
     const cur = new Date(start);
-    for (let w = 0; w < 12; w++) {
+    while (cur.getTime() <= today.getTime()) {
       const col: { key: string; inFuture: boolean }[] = [];
       for (let d = 0; d < 7; d++) {
         const key = iso(cur);
-        const inFuture = cur.getTime() > today.getTime();
-        const cell = map.get(key);
-        if (cell) {
-          mx = Math.max(mx, Math.abs(cell.pnl));
-          sum += cell.pnl;
-        }
-        col.push({ key, inFuture });
+        col.push({ key, inFuture: cur.getTime() > today.getTime() });
         cur.setDate(cur.getDate() + 1);
       }
-      wks.push(col);
+      all.push(col);
     }
-    return { weeks: wks, maxAbs: mx, net: sum };
+    // keep the trailing 12 weeks so today is always visible
+    const weeks = all.slice(-12);
+
+    let mx = 1;
+    let sum = 0;
+    for (const col of weeks) {
+      for (const cell of col) {
+        if (cell.inFuture) continue;
+        const rec = map.get(cell.key);
+        if (rec) {
+          mx = Math.max(mx, Math.abs(rec.pnl));
+          sum += rec.pnl;
+        }
+      }
+    }
+    return { weeks, maxAbs: mx, net: sum };
   }, [trades]);
 
   const map = useMemo(() => dailyMap(trades), [trades]);
