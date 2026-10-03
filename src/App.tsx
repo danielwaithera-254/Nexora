@@ -44,6 +44,7 @@ import {
   type Filters,
 } from "./lib/metrics";
 import { cn } from "./utils/cn";
+import { DisplayUnitProvider } from "./lib/display";
 import { vaultGet, vaultSet } from "./lib/vault";
 import type { AccountConfig } from "./components/Accounts";
 import Auth from "./components/Auth";
@@ -496,7 +497,7 @@ export default function App() {
       case "reports":
         return <Reveal><Reports trades={current} /></Reveal>;
       case "settings":
-        return <Reveal><Settings cloudAccount={CLOUD_ENABLED && !offline ? {
+        return <Reveal><Settings onDarkChange={setDark} cloudAccount={CLOUD_ENABLED && !offline ? {
           email: session?.user?.email ?? null,
           syncing: syncBusy,
           lastSynced: lastSyncedAt,
@@ -544,7 +545,11 @@ export default function App() {
     settings: "Settings",
   };
 
+  // 1R = 1% of connected account capital (adapts to account filter)
+  const rValue = Math.max(1, startCapital * 0.01);
+
   return (
+    <DisplayUnitProvider rValue={rValue}>
     <div className="flex min-h-screen bg-surface">
       <Sidebar
         open={sidebarOpen}
@@ -616,5 +621,6 @@ export default function App() {
         )}
       </div>
     </div>
+    </DisplayUnitProvider>
   );
 }

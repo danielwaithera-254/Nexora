@@ -1,7 +1,8 @@
 ﻿import { Flame, Trophy } from "lucide-react";
 import type { Kpis } from "../lib/metrics";
 import { trendPct } from "../lib/metrics";
-import { fmtMoney, fmtNum, fmtPct } from "../lib/format";
+import { fmtNum, fmtPct } from "../lib/format";
+import { useDisplay } from "../lib/display";
 import { Card, Delta, InfoTip, Sparkline, useCountUp } from "./ui";
 import { cn } from "../utils/cn";
 
@@ -47,6 +48,7 @@ export default function KpiCards({
   const cnt = useCountUp(k.count);
   const ratio = useCountUp(k.wlRatio);
 
+  const { fmtPnl, unit } = useDisplay();
   const ringC = 2 * Math.PI * 16;
   const pfFill = Math.min(1, k.pf / 3);
   const streakWin = k.streak.type === "win";
@@ -65,7 +67,7 @@ export default function KpiCards({
               k.net > 0 ? "text-gain" : k.net < 0 ? "text-loss" : "text-ink"
             )}
           >
-            {fmtMoney(net, { sign: true })}
+            {fmtPnl(net, { sign: true })}
           </p>
           <Sparkline data={spark} color={k.net >= 0 ? "var(--gain)" : "var(--loss)"} />
         </div>
@@ -106,8 +108,8 @@ export default function KpiCards({
           </svg>
         </div>
         <p className="mt-2.5 text-[10px] font-medium text-faint">
-          <span className="font-bold text-gain">{fmtMoney(k.grossProfit)}</span> won ·{" "}
-          <span className="font-bold text-loss">{fmtMoney(k.grossLoss)}</span> lost
+          <span className="font-bold text-gain">{fmtPnl(k.grossProfit)}</span> won ·{" "}
+          <span className="font-bold text-loss">{fmtPnl(k.grossLoss)}</span> lost
         </p>
       </Card>
 
@@ -185,13 +187,13 @@ export default function KpiCards({
             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-panel2">
               <div className="h-full rounded-full bg-gain" style={{ width: `${(k.avgWin / maxWL) * 100}%` }} />
             </div>
-            <span className="w-12 text-right text-[9.5px] font-bold text-gain tnum">{fmtMoney(k.avgWin)}</span>
+            <span className="w-12 text-right text-[9.5px] font-bold text-gain tnum">{fmtPnl(k.avgWin)}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-panel2">
               <div className="h-full rounded-full bg-loss" style={{ width: `${(k.avgLoss / maxWL) * 100}%` }} />
             </div>
-            <span className="w-12 text-right text-[9.5px] font-bold text-loss tnum">-{fmtMoney(k.avgLoss)}</span>
+            <span className="w-12 text-right text-[9.5px] font-bold text-loss tnum">-{fmtPnl(k.avgLoss)}</span>
           </div>
         </div>
       </Card>

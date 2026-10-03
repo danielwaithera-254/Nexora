@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useState, useEffect, useMemo } from "react";
 import { Card, CardHead } from "./ui";
 import { cn } from "../utils/cn";
 import { Save, User, Moon, Sun, ShieldCheck, Lock, Download, Upload, KeyRound, CheckCircle2, AlertTriangle, Bell, Palette, Database, Globe, Layers, Cloud, LogOut, RefreshCw, Trash2 } from "lucide-react";
@@ -15,10 +15,21 @@ export interface CloudAccountInfo {
 interface SettingsProps {
   dark?: boolean;
   onToggleDark?: () => void;
+  onDarkChange?: (v: boolean) => void;
   cloudAccount?: CloudAccountInfo;
 }
 
-export default function Settings({ dark = false, onToggleDark, cloudAccount }: SettingsProps) {
+const ALL_TIMEZONES: string[] = (() => {
+  try {
+    if (typeof Intl.supportedValuesOf === "function") return Intl.supportedValuesOf("timeZone");
+  } catch {}
+  try {
+    return [Intl.DateTimeFormat().resolvedOptions().timeZone];
+  } catch {}
+  return ["UTC"];
+})();
+
+export default function Settings({ dark = false, onDarkChange, cloudAccount }: SettingsProps) {
   const [name, setName] = useState(() => vaultGet<{ name?: string }>("settings", {}).name ?? "Jordan Tate");
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("nexora-dark") === "1");
   const [notifications, setNotifications] = useState(() => vaultGet<{ notifications?: boolean }>("settings", {}).notifications ?? true);
@@ -33,7 +44,22 @@ export default function Settings({ dark = false, onToggleDark, cloudAccount }: S
   const [confirmPass, setConfirmPass] = useState("");
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [tzOpen, setTzOpen] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const tzMatches = useMemo(() => {
+    const q = timezone.trim().toLowerCase();
+    if (!q) return ALL_TIMEZONES.slice(0, 8);
+    const starts: string[] = [];
+    const contains: string[] = [];
+    for (const z of ALL_TIMEZONES) {
+      const lz = z.toLowerCase();
+      if (lz.startsWith(q)) starts.push(z);
+      else if (lz.includes(q.replace(/[\s_]+/g, "/")) || lz.includes(q)) contains.push(z);
+      if (starts.length >= 8) break;
+    }
+    return [...starts, ...contains].slice(0, 8);
+  }, [timezone]);
 
   const saveSettings = () => {
     const settings = {
@@ -48,7 +74,7 @@ export default function Settings({ dark = false, onToggleDark, cloudAccount }: S
     vaultSet("settings", settings);
     localStorage.setItem("nexora-dark", darkMode ? "1" : "0");
     document.documentElement.classList.toggle("dark", darkMode);
-    onToggleDark?.();
+    onDarkChange?.(darkMode);
     setMsg({ ok: true, text: "Settings saved successfully." });
     setTimeout(() => setMsg(null), 2600);
   };
@@ -229,11 +255,31 @@ export default function Settings({ dark = false, onToggleDark, cloudAccount }: S
                 <option value="CAD">CAD ($)</option>
               </select>
             </div>
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-mut mb-1">Timezone</label>
-              <select value={timezone} onChange={e => setTimezone(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-edge bg-panel text-ink focus:border-brand focus:outline-none">
-                {(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [Intl.DateTimeFormat().resolvedOptions().timeZone]).map(tz => <option key={tz} value={tz}>{tz}</option>)}
-              </select>
+              <input
+                value={timezone}
+                onChange={e => { setTimezone(e.target.value); setTzOpen(true); }}
+                onFocus={() => setTzOpen(true)}
+                onBlur={() => setTimeout(() => setTzOpen(false), 150)}
+                onKeyDown={e => { if (e.key === "Escape") setTzOpen(false); }}
+                placeholder="Type to search timezones…"
+                autoComplete="off"
+                className="w-full px-3 py-2 rounded-lg border border-edge bg-panel text-ink focus:border-brand focus:outline-none"
+              />
+              {tzOpen && tzMatches.length > 0 && (
+                <div className="absolute inset-x-0 top-full z-30 mt-1 max-h-48 overflow-y-auto rounded-xl border border-edge bg-panel shadow-2xl">
+                  {tzMatches.map(tz => (
+                    <button
+                      key={tz}
+                      onMouseDown={e => { e.preventDefault(); setTimezone(tz); setTzOpen(false); }}
+                      className={cn("block w-full px-3 py-1.5 text-left text-[13px] hover:bg-brand-soft hover:text-brand", tz === timezone ? "font-bold text-brand" : "text-ink")}
+                    >
+                      {tz}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <button onClick={saveSettings} className="px-4 py-2 rounded-lg bg-brand text-white font-semibold hover:bg-brand-deep transition-colors">Save Trading Preferences</button>

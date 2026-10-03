@@ -1,4 +1,6 @@
 import { Menu, Moon, Sun, Sparkles, Settings2, Bell } from "lucide-react";
+import { useDisplay } from "../lib/display";
+import { fmtMoney } from "../lib/format";
 
 export default function TopBar({
   onMenu,
@@ -15,6 +17,7 @@ export default function TopBar({
   syncLabel: string;
   pageLabel: string;
 }) {
+  const { unit, setUnit, rValue } = useDisplay();
   return (
     <header className="themed sticky top-0 z-30 flex items-center gap-3 border-b border-edge bg-surface/80 px-4 py-3 backdrop-blur-xl sm:px-6">
       <button
@@ -36,6 +39,24 @@ export default function TopBar({
       </div>
 
       <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+        <div
+          className="flex items-center rounded-xl border border-edge bg-panel p-1"
+          title={`Display P&L in ${unit === "$" ? "dollars" : "R multiples"} · 1R = 1% of account (${fmtMoney(rValue)})`}
+        >
+          {(["$", "R"] as const).map((u) => (
+            <button
+              key={u}
+              onClick={() => setUnit(u)}
+              className={
+                unit === u
+                  ? "rounded-lg bg-brand px-2.5 py-1 text-[11px] font-bold text-white shadow"
+                  : "rounded-lg px-2.5 py-1 text-[11px] font-bold text-mut transition-colors hover:text-ink"
+              }
+            >
+              {u}
+            </button>
+          ))}
+        </div>
         <button
           onClick={onInsights}
           className="brand-gradient group flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[11.5px] font-bold text-white shadow-[0_6px_18px_-6px_var(--brand-ring)] transition-all hover:-translate-y-px hover:shadow-[0_10px_24px_-8px_var(--brand-ring)] active:translate-y-0 active:scale-95"
