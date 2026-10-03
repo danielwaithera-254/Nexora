@@ -33,6 +33,18 @@ export default function Settings({ dark = false, onDarkChange, cloudAccount }: S
   const [name, setName] = useState(() => vaultGet<{ name?: string }>("settings", {}).name ?? "Jordan Tate");
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("nexora-dark") === "1");
   const [notifications, setNotifications] = useState(() => vaultGet<{ notifications?: boolean }>("settings", {}).notifications ?? true);
+  const [notifPrefs, setNotifPrefs] = useState(() => {
+    const s = vaultGet<Record<string, any>>("settings", {});
+    return {
+      dailySummary: s.notifDailySummary ?? true,
+      tradeLogged: s.notifTradeLogged ?? true,
+      goalUpdates: s.notifGoalUpdates ?? true,
+      streakAlerts: s.notifStreakAlerts ?? true,
+      drawdownAlerts: s.notifDrawdownAlerts ?? true,
+      drawdownThreshold: Number(s.notifDrawdownThreshold) || 5,
+      sound: s.notifSound ?? false,
+    };
+  });
   const [timezone, setTimezone] = useState(() => vaultGet<{ timezone?: string }>("settings", {}).timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [currency, setCurrency] = useState(() => vaultGet<{ currency?: string }>("settings", {}).currency ?? "USD");
   const [defaultRisk, setDefaultRisk] = useState(() => vaultGet<{ defaultRisk?: number }>("settings", {}).defaultRisk ?? 1);
@@ -65,6 +77,13 @@ export default function Settings({ dark = false, onDarkChange, cloudAccount }: S
     const settings = {
       name: name.trim() || "Jordan Tate",
       notifications,
+      notifDailySummary: notifPrefs.dailySummary,
+      notifTradeLogged: notifPrefs.tradeLogged,
+      notifGoalUpdates: notifPrefs.goalUpdates,
+      notifStreakAlerts: notifPrefs.streakAlerts,
+      notifDrawdownAlerts: notifPrefs.drawdownAlerts,
+      notifDrawdownThreshold: notifPrefs.drawdownThreshold,
+      notifSound: notifPrefs.sound,
       timezone,
       currency,
       defaultRisk,
@@ -288,15 +307,61 @@ export default function Settings({ dark = false, onDarkChange, cloudAccount }: S
 
       {/* Notifications */}
       <Card>
-        <CardHead title="Notifications" info="Configure alerts and reminders" icon={<Bell size={16} />} />
-        <div className="p-4 space-y-4">
-          <label className="flex items-center justify-between cursor-pointer">
+        <CardHead title="Notifications" info="Choose exactly what Nexora tells you about" icon={<Bell size={16} />} />
+        <div className="p-4 space-y-3">
+          <label className="flex items-center justify-between cursor-pointer rounded-xl border border-edge bg-panel2 px-3 py-2.5">
             <div>
-              <p className="font-medium text-ink">Enable Notifications</p>
-              <p className="text-sm text-mut">Receive trade alerts and daily summaries</p>
+              <p className="font-bold text-ink">Enable Notifications</p>
+              <p className="text-xs text-mut">Master switch for all alerts below</p>
             </div>
             <input type="checkbox" checked={notifications} onChange={e => setNotifications(e.target.checked)} className="w-5 h-5 rounded border-edge text-brand focus:ring-brand" />
           </label>
+          <div className={notifications ? "space-y-2" : "space-y-2 opacity-40 pointer-events-none"}>
+            {[
+              { key: "dailySummary", title: "Daily summary", desc: "End-of-day P&L recap with win rate" },
+              { key: "tradeLogged", title: "Trade logged", desc: "Confirm each time a trade is added" },
+              { key: "goalUpdates", title: "Goal updates", desc: "Progress milestones and completions" },
+              { key: "streakAlerts", title: "Streak alerts", desc: "Win streaks to protect, losing streaks to stop" },
+              { key: "sound", title: "Sound", desc: "Play a tone with each alert" },
+            ].map((row) => (
+              <label key={row.key} className="flex items-center justify-between cursor-pointer rounded-xl border border-edge px-3 py-2.5 hover:border-brand/40">
+                <div>
+                  <p className="text-sm font-semibold text-ink">{row.title}</p>
+                  <p className="text-xs text-mut">{row.desc}</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={(notifPrefs as any)[row.key]}
+                  onChange={e => setNotifPrefs(p => ({ ...p, [row.key]: e.target.checked }))}
+                  className="w-5 h-5 rounded border-edge text-brand focus:ring-brand"
+                />
+              </label>
+            ))}
+            <div className="rounded-xl border border-edge px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-ink">Drawdown warnings</p>
+                  <p className="text-xs text-mut">Alert when account drawdown passes this level</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={notifPrefs.drawdownAlerts}
+                  onChange={e => setNotifPrefs(p => ({ ...p, drawdownAlerts: e.target.checked }))}
+                  className="w-5 h-5 rounded border-edge text-brand focus:ring-brand"
+                />
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  type="range" min={1} max={25} step={0.5}
+                  value={notifPrefs.drawdownThreshold}
+                  onChange={e => setNotifPrefs(p => ({ ...p, drawdownThreshold: Number(e.target.value) || 5 }))}
+                  className="flex-1"
+                />
+                <span className="w-12 text-right text-sm font-bold text-ink tnum">{notifPrefs.drawdownThreshold}%</span>
+              </div>
+            </div>
+          </div>
+          <button onClick={saveSettings} className="w-full px-4 py-2 rounded-lg bg-brand text-white font-semibold hover:bg-brand-deep transition-colors">Save notification preferences</button>
         </div>
       </Card>
 
