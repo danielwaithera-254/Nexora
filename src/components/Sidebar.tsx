@@ -6,11 +6,9 @@ import {
   BarChart3,
   LineChart,
   Target,
-  ListChecks,
   Calendar,
-  Target as TargetIcon,
-  Settings,
   Plus,
+  LogOut,
   X,
   NotebookPen,
   BookOpen,
@@ -33,11 +31,8 @@ export type PageId =
   | "tradejournal"
   | "strategies"
   | "calendar"
-  | "goals"
   | "propfirms"
-  | "routines"
-  | "reports"
-  | "settings";
+  | "reports";
 
 interface NavItem {
   id: PageId;
@@ -56,11 +51,8 @@ const NAV: NavItem[] = [
   { id: "analytics", name: "Analytics", icon: BarChart3, section: "analytics" },
   { id: "strategies", name: "Strategies", icon: Target, section: "analytics" },
   { id: "calendar", name: "Calendar", icon: Calendar, section: "habits" },
-  { id: "goals", name: "Goals", icon: TargetIcon, section: "habits" },
-  { id: "routines", name: "Routines", icon: ListChecks, section: "habits" },
   { id: "propfirms", name: "Prop Firms", icon: Building2, section: "workspace" },
   { id: "reports", name: "Reports", icon: ClipboardList, section: "analytics" },
-  { id: "settings", name: "Settings", icon: Settings, section: "settings" },
 ];
 
 const SECTION_LABELS: Record<string, string> = {
@@ -78,6 +70,8 @@ export default function Sidebar({
   active,
   collapsed,
   onToggleCollapsed,
+  userEmail,
+  onSignOut,
 }: {
   open: boolean;
   onClose: () => void;
@@ -86,6 +80,8 @@ export default function Sidebar({
   active: PageId;
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  userEmail?: string | null;
+  onSignOut?: () => void;
 }) {
   return (
     <>
@@ -163,8 +159,9 @@ export default function Sidebar({
 
         {/* nav */}
         <nav className={cn("mt-6 flex-1 space-y-1 overflow-y-auto pb-4", collapsed ? "px-2" : "px-3")}>
-          {["workspace", "analytics", "habits", "settings"].map((section) => {
+          {["workspace", "analytics", "habits"].map((section) => {
             const items = NAV.filter((n) => n.section === section);
+            if (!items.length) return null;
             return (
               <div key={section} className="space-y-1">
                 {!collapsed && (
@@ -228,16 +225,19 @@ export default function Sidebar({
             {!collapsed && (
               <>
                 <div className="min-w-0">
-                  <p className="truncate text-[12px] font-bold text-white">Jordan Tate</p>
-                  <p className="text-[10px] text-white/55">Funded · 3 accounts</p>
+                  <p className="truncate text-[12px] font-bold text-white">{userEmail ?? "Jordan Tate"}</p>
+                  <p className="text-[10px] text-white/55">{userEmail ? "Cloud synced" : "Local mode"}</p>
                 </div>
+            {onSignOut && (
             <button
-              onClick={() => onNavigate("settings")}
+              onClick={onSignOut}
               className="ml-auto rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
-              aria-label="Settings"
+              aria-label="Sign out"
+              title="Sign out"
             >
-              <Settings size={14} />
+              <LogOut size={14} />
             </button>
+            )}
               </>
             )}
           </div>

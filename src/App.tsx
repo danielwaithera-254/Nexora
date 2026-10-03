@@ -18,11 +18,8 @@ import Trades from "./components/Trades";
 import Analytics from "./components/Analytics";
 import TradeJournal from "./components/TradeJournal";
 import Strategies from "./components/Strategies";
-import Goals from "./components/Goals";
 import PropFirms from "./components/PropFirms";
-import Routines from "./components/Routines";
 import Reports from "./components/Reports";
-import Settings from "./components/Settings";
 import { Reveal } from "./components/ui";
 import {
   parseTradesCSV,
@@ -73,11 +70,8 @@ type PageId =
   | "tradejournal"
   | "strategies"
   | "calendar"
-  | "goals"
   | "propfirms"
-  | "routines"
-  | "reports"
-  | "settings";
+  | "reports";
 
 interface Toast {
   msg: string;
@@ -389,7 +383,7 @@ export default function App() {
   };
 
   const renderPage = () => {
-    if (!hasData && page !== "accounts" && page !== "settings") {
+    if (!hasData && page !== "accounts") {
       return (
         <>
           <Reveal>
@@ -488,22 +482,10 @@ export default function App() {
         return <Reveal><Strategies trades={current} /></Reveal>;
       case "calendar":
         return <Reveal><Calendar trades={calTrades} /></Reveal>;
-      case "goals":
-        return <Reveal><Goals /></Reveal>;
       case "propfirms":
         return <Reveal><PropFirms /></Reveal>;
-      case "routines":
-        return <Reveal><Routines /></Reveal>;
       case "reports":
         return <Reveal><Reports trades={current} /></Reveal>;
-      case "settings":
-        return <Reveal><Settings onDarkChange={setDark} cloudAccount={CLOUD_ENABLED && !offline ? {
-          email: session?.user?.email ?? null,
-          syncing: syncBusy,
-          lastSynced: lastSyncedAt,
-          onSyncNow: () => { window.dispatchEvent(new CustomEvent("nexora-sync-now")); },
-          onSignOut: handleSignOut,
-        } : undefined} /></Reveal>;
       default:
         return <div className="text-center py-12 text-mut">Page not found</div>;
     }
@@ -538,11 +520,8 @@ export default function App() {
     tradejournal: "Trade Journal",
     strategies: "Strategies",
     calendar: "Calendar",
-    goals: "Goals",
     propfirms: "Prop Firms",
-    routines: "Routines",
     reports: "Reports",
-    settings: "Settings",
   };
 
   // 1R = 1% of connected account capital (adapts to account filter)
@@ -559,6 +538,8 @@ export default function App() {
         active={page}
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
+        userEmail={CLOUD_ENABLED && !offline ? session?.user?.email ?? null : null}
+        onSignOut={CLOUD_ENABLED && !offline && session ? handleSignOut : undefined}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
